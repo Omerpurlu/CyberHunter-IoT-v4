@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberHunter Dashboard - Aktif Savunma Paneli</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        /* GENEL TASARIM AYARLARI (CSS) */
+        body { 
+            background-color: #0d1117; 
+            color: #c9d1d9; 
+            font-family: 'Segoe UI', sans-serif; 
+            transition: box-shadow 0.5s ease; 
+        }
+
+        /* --- SİBER KIRMIZI ALARM EFEKTİ --- */
+        @keyframes redAlertFlash {
+            0% { box-shadow: inset 0 0 0px rgba(220, 53, 69, 0); }
+            50% { box-shadow: inset 0 0 100px rgba(220, 53, 69, 0.9); }
+            100% { box-shadow: inset 0 0 0px rgba(220, 53, 69, 0); }
+        }
+
+        .kirmizi-alarm-aktif {
+            animation: redAlertFlash 1s ease-in-out 3; 
+            transition: all 0.3s;
+        }
+
+        /* Siber Güvenlik Kart Tasarımı */
+        .cyber-card { 
+            background-color: #161b22; 
+            border: 1px solid #30363d; 
+            border-radius: 12px; 
+            padding: 25px; 
+            box-shadow: 0 8px 16px rgba(0,0,0,0.4); 
+            transition: transform 0.3s;
+        }
+        .cyber-card:hover { transform: translateY(-5px); } 
+
+        /* Renk Paleti */
+        .text-neon { color: #58a6ff; } 
+        .text-alert { color: #f85149; } 
+        .table-dark { background-color: #161b22; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid py-4">
+    <!-- HEADER -->
+    <header class="pb-3 mb-4 border-bottom border-secondary d-flex justify-content-between align-items-center">
+        <h2>
+            <i class="fa-solid fa-shield-halved text-neon"></i> 
+            CyberHunter <span class="text-white-50">| Kontrol Paneli</span>
+        </h2>
+        <div class="d-flex align-items-center">
+            <span id="sistemDurumRozeti" class="badge bg-success p-2 me-2">SİSTEM AKTİF</span>
+            <small class="text-muted">Cihaz: RPi-Node-01</small>
+        </div>
+    </header>
+
+    <!-- ========================================== -->
+    <!-- YENİ: CYBERHUNTER IoT CİHAZ DURUM KARTI (PARLAK YAZILAR) -->
+    <!-- ========================================== -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="cyber-card">
+                <div class="row align-items-center">
+                    <!-- Sol Kısım: Cihaz Bilgileri -->
+                    <div class="col-md-4">
+                        <h5 class="mb-1 text-white fw-bold">
+                            <i class="fa-solid fa-microchip text-neon me-2"></i>ESP32 LED Modülü
+                        </h5>
+                        <p class="mb-2 text-white small">Cihaz ID: <span class="text-info fw-bold">esp32-led-01</span></p>
+                        <div class="d-flex align-items-center">
+                            <span id="iotOnlineNoktasi" class="rounded-circle me-2" style="width: 10px; height: 10px; background-color: #6c757d; display: inline-block;"></span>
+                            <span id="iotDurumMetni" class="fw-bold small" style="color: #6c757d;">Bağlanıyor...</span>
+                        </div>
+                    </div>
+
+                    <!-- Orta Kısım: Fiziksel LED Göstergeleri -->
+                    <div class="col-md-5 d-flex justify-content-around align-items-center my-3 my-md-0">
+                        <!-- Mavi LED -->
+                        <div class="text-center">
+                            <div id="maviLedIsik" class="rounded-circle mb-2" style="width: 35px; height: 35px; background-color: #1a233a; border: 2px solid #0d6efd; transition: all 0.5s ease; margin: 0 auto; opacity: 0.4;"></div>
+                            <span class="small d-block text-white fw-bold">MAVİ LED</span>
+                        </div>
+
+                        <!-- Kırmızı LED -->
+                        <div class="text-center">
+                            <div id="kirmiziLedIsik" class="rounded-circle mb-2" style="width: 35px; height: 35px; background-color: #2c0f11; border: 2px solid #dc3545; transition: all 0.5s ease; margin: 0 auto; opacity: 0.4;"></div>
+                            <span class="small d-block text-white fw-bold">KIRMIZI LED</span>
+                        </div>
+                    </div>
+
+                    <!-- Sağ Kısım: Teşhis & Tanılama Bilgileri -->
+                    <div class="col-md-3 text-md-end">
+                        <div class="small text-white mb-1">Aktif Durum: <span id="aktifLedMetni" class="text-white fw-bold">LED'ler kapalı</span></div>
+                        <div class="small text-white mb-1">Sıra No: <span id="iotSequence" class="text-info fw-bold">0</span></div>
+                        <div class="small text-white mb-1">Gecikme: <span id="iotGecikme" class="text-warning fw-bold">-- ms</span></div>
+                        <div class="small text-white">Panel Yayını: <span id="wsBaglantiDurumu" class="text-info fw-bold">Bağlanıyor...</span></div>
+                    </div>
+
+                    <!-- Uzaktan Komuta Merkezi -->
+    <div class="col-12 mt-4 pt-3 border-top border-secondary text-center">
+    <span class="text-white fw-bold d-block mb-3" style="letter-spacing: 2px; font-size: 0.95rem;">
+        <i class="fa-solid fa-satellite-dish text-neon me-2"></i>UZAKTAN MÜDAHALE PANELİ
+    </span>
+    <button onclick="cihazaEmirGonder('MAVI_YAK')" class="btn btn-primary btn-sm me-3 fw-bold px-4 py-2" style="box-shadow: 0 0 15px rgba(13, 110, 253, 0.6); transition: all 0.3s;">
+        <i class="fa-solid fa-eye me-1"></i> Mavi Renge Zorla
+    </button>
+    <button onclick="cihazaEmirGonder('KIRMIZI_YAK')" class="btn btn-danger btn-sm fw-bold px-4 py-2" style="box-shadow: 0 0 15px rgba(220, 53, 69, 0.6); transition: all 0.3s;">
+        <i class="fa-solid fa-power-off me-1"></i> Kırmızı Renge Zorla (Alarm)
+    </button>
+</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ANLIK SALDIRI DÜZEYİ BARI (Geri Eklendi) -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="cyber-card" style="padding: 15px 25px;">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 style="color: #94a3b8; font-weight: bold; letter-spacing: 1px; margin: 0;">ANLIK SALDIRI DÜZEYİ</h6>
+                    <h4 id="saldiriDuzeyiText" style="color: #2ea043; margin: 0; font-weight: bold;">0 / 10</h4>
+                </div>
+                <div class="progress" style="height: 15px; background-color: #0f1115; border: 1px solid #30363d;">
+                    <div id="saldiriDuzeyiBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- İSTATİSTİK KARTLARI -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="cyber-card text-center">
+                <i class="fa-solid fa-user-secret text-alert fa-2x mb-3"></i>
+                <h6 class="text-uppercase" style="color: #94a3b8; letter-spacing: 1px; font-weight: bold;">Toplam Saldırı (24s)</h6>
+                <h2 id="toplamSinyalSayaci" class="text-alert fw-bold">0</h2>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="cyber-card text-center">
+                <i class="fa-solid fa-scissors text-neon fa-2x mb-3"></i>
+                <h6 class="text-uppercase" style="color: #94a3b8; letter-spacing: 1px; font-weight: bold;">Fiziksel Bağlantı Kesme</h6>
+                <h2 id="fizikselKesintiSayaci" class="text-neon fw-bold">0</h2>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="cyber-card text-center">
+                <i class="fa-solid fa-microchip text-success fa-2x mb-3"></i>
+                <h6 class="text-uppercase" style="color: #94a3b8; letter-spacing: 1px; font-weight: bold;">Honeypot Servisleri</h6>
+                <h2 class="text-success fw-bold">DİNLEMEDE</h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- ALT BÖLÜM: GRAFİK VE TABLO -->
+    <div class="row g-4">
+        <!-- RADAR GRAFİĞİ -->
+        <div class="col-lg-5">
+            <div class="cyber-card h-100 d-flex flex-column">
+                <h4 class="mb-4 d-flex align-items-center">
+                    <i class="fa-solid fa-chart-pie text-neon me-2"></i> 
+                    Siber Tehdit Dağılımı
+                    <span class="badge bg-danger ms-auto" style="font-size: 0.55em; letter-spacing: 1px;">
+                        <i class="fa-solid fa-circle text-white me-1" style="font-size: 0.6em; vertical-align: middle;"></i>CANLI
+                    </span>
+                </h4>
+                
+                <div style="position: relative; height: 230px; width: 100%; margin: auto;">
+                    <canvas id="tehditGrafigi"></canvas>
+                </div>
+                
+                <p class="small mt-auto border-top border-secondary pt-3" style="color: #ced4da;">
+                    <i class="fa-solid fa-microchip me-1"></i>
+                    Bu radar, yerel IoT ağına (ESP32) yapılan fiziksel müdahaleleri anlık olarak analiz eder. 
+                    <span class="text-danger fw-bold">Kırmızı</span> dilimler yüksek riskli kesinti ve saldırıları, 
+                    <span class="text-primary fw-bold">Mavi</span> dilimler ise standart izleme ve ping işlemlerini gösterir.
+                </p>
+            </div>
+        </div>
+
+        <!-- CANLI LOG TABLOSU -->
+        <div class="col-lg-7">
+            <div class="cyber-card h-100">
+                <h4 class="mb-4"><i class="fa-solid fa-list-ul text-neon me-2"></i> Canlı Sızma Logları</h4>
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover border-secondary">
+                        <thead>
+                            <tr>
+                                <th>Zaman</th>
+                                <th>Kaynak IP</th>
+                                <th>Hedef Port</th>
+                                <th>Tehdit Türü</th>
+                                <th>Aksiyon</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logTableBody">
+                            <!-- JS ile otomatik doldurulacak -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- GENEL DEĞİŞKENLER ---
+    let kirmiziSinyalSayisi = 0;
+    let maviSinyalSayisi = 0;
+    let anlikTehditSeviyesi = 0; 
+    let sinyalGrafigi;
+    let ws;
+    let reconnectDelay = 1000; // İlk yeniden bağlanma süresi (1 saniye)
+    const maxReconnectDelay = 10000; // Maksimum beklenecek süre (10 saniye)
+
+    // Backend'in yerel ağ adresi. ESP32 firmware'indeki adresle aynı olmalı.
+    const IP_ADRESI = "10.104.1.89";
+    const BACKEND_PORT = 8000;
+
+    // --- GRAFİĞİ BAŞLATMA FONKSİYONU ---
+    function grafigiBaslat() {
+        const ctx = document.getElementById('tehditGrafigi').getContext('2d');
+        sinyalGrafigi = new Chart(ctx, {
+            type: 'doughnut', 
+            data: {
+                labels: ['Kırmızı (Tehdit)', 'Mavi (İzleme)'],
+                datasets: [{
+                    data: [kirmiziSinyalSayisi, maviSinyalSayisi],
+                    backgroundColor: ['#dc3545', '#0d6efd'], 
+                    borderColor: '#212529',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: 'white' } }
+                }
+            }
+        });
+    }
+
+    // --- FRONTEND ARAYÜZÜNÜ VE LED GÖSTERGELERİNİ GÜNCELLEYEN ANA FONKSİYON ---
+    function sistemiGuncelle(veri) {
+        const deviceId = veri.deviceId;
+        const led = veri.led;
+        const online = veri.online;
+        const sequence = veri.sequence;
+        const serverReceivedAt = veri.serverReceivedAt;
+
+        // 1. Cihaz Çevrimiçi/Çevrimdışı Durumu
+        const iotOnlineNoktasi = document.getElementById("iotOnlineNoktasi");
+        const iotDurumMetni = document.getElementById("iotDurumMetni");
+
+        if (online) {
+            iotOnlineNoktasi.style.backgroundColor = "#2ea043"; // Canlı yeşil
+            iotOnlineNoktasi.style.boxShadow = "0 0 10px #2ea043";
+            iotDurumMetni.innerText = "Canlı Bağlantı Aktif";
+            iotDurumMetni.style.color = "#2ea043";
+        } else {
+            iotOnlineNoktasi.style.backgroundColor = "#f85149"; // Kırmızı/Gri
+            iotOnlineNoktasi.style.boxShadow = "none";
+            iotDurumMetni.innerText = "Canlı Bağlantı Kesildi";
+            iotDurumMetni.style.color = "#f85149";
+        }
+
+        // 2. LED Fiziksel Işık Efektleri (Glow / Opaklık Ayarları)
+        const maviLed = document.getElementById("maviLedIsik");
+        const kirmiziLed = document.getElementById("kirmiziLedIsik");
+        const aktifLedMetni = document.getElementById("aktifLedMetni");
+
+        if (led === "blue") {
+            // Mavi Aktif, Kırmızı Pasif
+            maviLed.style.backgroundColor = "#0d6efd";
+            maviLed.style.boxShadow = "0 0 25px #0d6efd";
+            maviLed.style.opacity = "1";
+
+            kirmiziLed.style.backgroundColor = "#2c0f11";
+            kirmiziLed.style.boxShadow = "none";
+            kirmiziLed.style.opacity = "0.4";
+
+            aktifLedMetni.innerText = "Mavi LED yanıyor";
+            aktifLedMetni.className = "text-primary fw-bold";
+        } else if (led === "red") {
+            // Kırmızı Aktif, Mavi Pasif
+            kirmiziLed.style.backgroundColor = "#dc3545";
+            kirmiziLed.style.boxShadow = "0 0 25px #dc3545";
+            kirmiziLed.style.opacity = "1";
+
+            maviLed.style.backgroundColor = "#1a233a";
+            maviLed.style.boxShadow = "none";
+            maviLed.style.opacity = "0.4";
+
+            aktifLedMetni.innerText = "Kırmızı LED yanıyor";
+            aktifLedMetni.className = "text-danger fw-bold";
+        } else {
+            // İkisi de Pasif (Off)
+            maviLed.style.backgroundColor = "#1a233a";
+            maviLed.style.boxShadow = "none";
+            maviLed.style.opacity = "0.4";
+
+            kirmiziLed.style.backgroundColor = "#2c0f11";
+            kirmiziLed.style.boxShadow = "none";
+            kirmiziLed.style.opacity = "0.4";
+
+            aktifLedMetni.innerText = "LED'ler kapalı";
+            aktifLedMetni.className = "text-white fw-bold";
+        }
+
+        // 3. Sıra Numarası (Sequence) Güncelle
+        document.getElementById("iotSequence").innerText = sequence;
+
+        // 4. Gecikme (Latency) Hesaplama
+        if (serverReceivedAt) {
+            const browserReceivedAt = Date.now();
+            const gecikme = browserReceivedAt - serverReceivedAt;
+            if (gecikme >= 0 && gecikme < 10000) {
+                document.getElementById("iotGecikme").innerText = gecikme + " ms";
+            }
+        }
+
+        // 5. Orta Bar ve Sayıcıları Güncelle
+        let toplamSinyal = kirmiziSinyalSayisi + maviSinyalSayisi + 1;
+        document.getElementById("toplamSinyalSayaci").innerText = toplamSinyal;
+
+        if (led === "red") {
+            kirmiziSinyalSayisi++;
+            document.getElementById("fizikselKesintiSayaci").innerText = kirmiziSinyalSayisi;
+            anlikTehditSeviyesi = 10;
+            
+            // Kırmızı Alarm Efekti (Ekran Yanıp Sönmesi)
+            document.body.classList.add("kirmizi-alarm-aktif");
+            setTimeout(() => { document.body.classList.remove("kirmizi-alarm-aktif"); }, 3000);
+        }
+        
+        if (led === "blue") {
+            maviSinyalSayisi++;
+            if(anlikTehditSeviyesi > 0) anlikTehditSeviyesi -= 2;
+            if(anlikTehditSeviyesi < 0) anlikTehditSeviyesi = 0;
+        }
+
+        // Anlık Saldırı Çubuğu Animasyonu
+        const progressBar = document.getElementById("saldiriDuzeyiBar");
+        const skorText = document.getElementById("saldiriDuzeyiText");
+        const durumRozeti = document.getElementById('sistemDurumRozeti');
+
+        skorText.innerText = anlikTehditSeviyesi + " / 10";
+        progressBar.style.width = (anlikTehditSeviyesi * 10) + "%";
+        
+        if(anlikTehditSeviyesi >= 8) {
+            progressBar.className = "progress-bar bg-danger progress-bar-striped progress-bar-animated";
+            skorText.style.color = "#f85149";
+            durumRozeti.innerText = "SİSTEM KAPATILDI (KORUMA AKTİF)";
+            durumRozeti.className = "badge bg-danger p-2 me-2";
+        } else if (anlikTehditSeviyesi >= 5) {
+            progressBar.className = "progress-bar bg-warning progress-bar-striped progress-bar-animated";
+            skorText.style.color = "#d29922";
+            durumRozeti.innerText = "TEHDİT ALGILANDI";
+            durumRozeti.className = "badge bg-warning text-dark p-2 me-2";
+        } else {
+            progressBar.className = "progress-bar bg-success progress-bar-striped progress-bar-animated";
+            skorText.style.color = "#2ea043";
+            durumRozeti.innerText = "SİSTEM AKTİF";
+            durumRozeti.className = "badge bg-success p-2 me-2";
+        }
+        
+        // Pasta Grafiğini Güncelle
+        sinyalGrafigi.data.datasets[0].data = [kirmiziSinyalSayisi, maviSinyalSayisi];
+        sinyalGrafigi.update(); 
+    }
+
+    // --- AKILLI WEBSOCKET BAĞLANTI SİSTEMİ (Auto-Reconnect ve Backoff) ---
+    function websocketBaglantisiniKur() {
+        const wsUrl = `ws://${IP_ADRESI}:${BACKEND_PORT}/ws`;
+        ws = new WebSocket(wsUrl);
+
+        const wsDurum = document.getElementById("wsBaglantiDurumu");
+
+        ws.onopen = function() {
+            console.log("🟢 Canlı siber yayın hattı (WebSocket) bağlandı.");
+            wsDurum.innerText = "Canlı bağlantı aktif";
+            wsDurum.className = "text-success fw-bold";
+            reconnectDelay = 1000; // Bağlantı kurulduğunda süreyi sıfırla
+            
+            // Bağlantı her geri geldiğinde son durumu veritabanından tekrar çek
+            sonDurumuYukle();
+        };
+
+        ws.onmessage = function(event) {
+            try {
+                const gelenVeri = JSON.parse(event.data);
+                console.log("🚨 Canlı Yayın Sinyali:", gelenVeri);
+
+                if (gelenVeri.type === "device-state" && gelenVeri.deviceId === "esp32-led-01") {
+                    // Log tablosuna ekleme yapalım
+                    tabloyaLogEkle(gelenVeri);
+                    // Tüm barları ve ledleri senkronize güncelle
+                    sistemiGuncelle(gelenVeri);
+                }
+            } catch (hata) {
+                console.error("Geçersiz JSON mesajı:", hata);
+            }
+        };
+
+        ws.onclose = function() {
+            console.log("🔴 Bağlantı kesildi. Tekrar bağlanmayı deniyor...");
+            wsDurum.innerText = "Yeniden bağlanılıyor...";
+            wsDurum.className = "text-warning fw-bold";
+            
+            // Cihazı da çevrimdışı göster
+            document.getElementById("iotOnlineNoktasi").style.backgroundColor = "#6c757d";
+            document.getElementById("iotDurumMetni").innerText = "Çevrim dışı (Bağlantı Yok)";
+            document.getElementById("iotDurumMetni").style.color = "#6c757d";
+
+            // Eksponansiyel Backoff (Kademeli gecikmeli bağlanma)
+            setTimeout(function() {
+                reconnectDelay = Math.min(reconnectDelay * 2, maxReconnectDelay);
+                websocketBaglantisiniKur();
+            }, reconnectDelay);
+        };
+
+        ws.onerror = function() {
+            wsDurum.innerText = "Ulaşılamıyor";
+            wsDurum.className = "text-danger fw-bold";
+        };
+    }
+
+    // --- TABLOYA LOG EKLEME FONKSİYONU ---
+    function tabloyaLogEkle(veri) {
+        const tbody = document.getElementById("logTableBody");
+        const yeniSatir = document.createElement("tr");
+
+        let rozet = "";
+        if (veri.led === "red") {
+            rozet = '<span class="badge bg-danger">KRİTİK - KESİLDİ</span>';
+        } else if (veri.led === "blue") {
+            rozet = '<span class="badge bg-primary">İZLENİYOR</span>';
+        } else {
+            rozet = '<span class="badge bg-secondary">KAPALI</span>';
+        }
+
+        const saat = new Date(veri.serverReceivedAt).toLocaleTimeString('tr-TR');
+
+        yeniSatir.innerHTML = `
+            <td>${saat}</td>
+            <td>${veri.deviceId}</td>
+            <td>WebSocket(Live)</td>
+            <td>IoT Sinyali</td>
+            <td>${rozet}</td>
+        `;
+        tbody.insertBefore(yeniSatir, tbody.firstChild);
+    }
+
+    // --- GET İSTEĞİYLE SON DURUMU YÜKLEME ---
+    async function sonDurumuYukle() {
+        try {
+            const response = await fetch(`http://${IP_ADRESI}:${BACKEND_PORT}/api/iot/devices/esp32-led-01/state`);
+            if (response.ok) {
+                const sonDurum = await response.json();
+                console.log("📂 Cihazın veritabanındaki son durumu yüklendi:", sonDurum);
+                sistemiGuncelle(sonDurum);
+            }
+        } catch (hata) {
+            console.error("Son durum API'den çekilemedi:", hata);
+        }
+    }
+
+    // --- GEÇMİŞ LOGLARI ÇEKME ( FETCH ) ---
+    async function gecmisLoglariGetir() {
+        try {
+            const response = await fetch(`http://${IP_ADRESI}:${BACKEND_PORT}/api/logs`);
+            const loglar = await response.json();
+            
+            const tbody = document.getElementById("logTableBody");
+            tbody.innerHTML = ""; 
+            
+            loglar.forEach(log => {
+                const tarih = new Date(log.server_received_at);
+                const saat = tarih.toLocaleTimeString('tr-TR');
+                
+                let rozet = "";
+                if (log.led === "red") {
+                    rozet = '<span class="badge bg-danger">KRİTİK - KESİLDİ</span>';
+                    kirmiziSinyalSayisi++;
+                } else if (log.led === "blue") {
+                    rozet = '<span class="badge bg-primary">İZLENİYOR</span>';
+                    maviSinyalSayisi++;
+                } else {
+                    rozet = '<span class="badge bg-secondary">KAPALI</span>';
+                }
+
+                const satir = document.createElement("tr");
+                satir.innerHTML = `
+                    <td>${saat}</td>
+                    <td>${log.device_id}</td>
+                    <td>SQLite (Geçmiş)</td>
+                    <td>IoT Sinyali</td>
+                    <td>${rozet}</td>
+                `;
+                tbody.appendChild(satir);
+            });
+            
+            document.getElementById("toplamSinyalSayaci").innerText = kirmiziSinyalSayisi + maviSinyalSayisi;
+            document.getElementById("fizikselKesintiSayaci").innerText = kirmiziSinyalSayisi;
+            sinyalGrafigi.data.datasets[0].data = [kirmiziSinyalSayisi, maviSinyalSayisi];
+            sinyalGrafigi.update();
+        } catch (hata) {
+            console.error("Geçmiş loglar yüklenirken hata oluştu:", hata);
+        }
+    }
+
+    // --- SİBER KOMUTA: CİHAZA UZAKTAN EMİR GÖNDERME ---
+    async function cihazaEmirGonder(komutTuru) {
+        try {
+            const response = await fetch(`http://${IP_ADRESI}:${BACKEND_PORT}/api/iot/commands`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ device_id: "esp32-led-01", komut: komutTuru })
+            });
+            
+            if(response.ok) {
+                // Şık bir bildirim veya console log
+                console.log(`🚀 [${komutTuru}] emri veritabanına iletildi. Donanım bekleniyor...`);
+                
+                // Kullanıcıya hissettirmek için ufak bir arayüz tepkisi
+                document.body.classList.add("kirmizi-alarm-aktif");
+                setTimeout(() => { document.body.classList.remove("kirmizi-alarm-aktif"); }, 500);
+            }
+        } catch (error) {
+            console.error("Siber emir gönderilemedi:", error);
+        }
+    }
+
+    // --- SAYFA İLK AÇILDIĞINDA BAŞLATILACAKLAR ---
+    window.onload = async function() {
+        grafigiBaslat(); 
+        await gecmisLoglariGetir(); 
+        await sonDurumuYukle(); 
+        websocketBaglantisiniKur(); 
+    };
+
+</script>
+</body>
+</html>

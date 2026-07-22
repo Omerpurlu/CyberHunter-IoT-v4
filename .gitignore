@@ -1,0 +1,14 @@
+# Python runtime files and local database
+__pycache__/
+*.py[cod]
+*.db
+
+# PlatformIO generated files
+.pio/
+.vscode/
+
+# Local environment files and editor metadata
+.env
+.env.*
+!.env.example
+.DS_Store
