@@ -2,14 +2,20 @@
 
 ## Aktif frontend
 
-Bu projenin aktif dashboard uygulaması `cyberhunter-dashboard/` klasöründeki React + Vite uygulamasıdır.
+Bu projenin aktif dashboard uygulaması `frontend/` klasöründeki React + Vite uygulamasıdır.
 
 Geliştirme sunucusunu başlatmak için:
 
 ```bash
-cd cyberhunter-dashboard
+cd frontend
 npm install
 npm run dev
 ```
 
-Önceki statik dashboard, kaynak kodu korunacak şekilde `archive/old-static-dashboard/` klasörüne taşınmıştır. Aktif geliştirme akışında bu klasör kullanılmaz.
+Production kontrolü için:
+
+```bash
+npm run build
+```
+
+Önceki statik dashboard, kaynak kodu korunacak şekilde `archive/old-static-dashboard/` klasöründe tutulur. Eski React kaynakları, `frontend/` doğrulaması tamamlanana kadar `cyberhunter-dashboard/` klasöründe korunur.

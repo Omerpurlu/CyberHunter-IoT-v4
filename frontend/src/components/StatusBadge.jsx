@@ -1,0 +1,1 @@
+export default function StatusBadge({ sunucuDurumu }) { return <span className={`rounded-full border px-4 py-1.5 text-xs font-semibold ${sunucuDurumu === 'ÇEVRİMİÇİ' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'border-red-500/20 bg-red-500/10 text-red-400'}`}>{sunucuDurumu}</span>; }
