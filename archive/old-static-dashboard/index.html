@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CyberHunter | IoT Güvenlik Merkezi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root { --bg:#080d13; --surface:#101923; --surface-2:#151f2b; --line:#263749; --text:#e6eef7; --muted:#8292a6; --cyan:#36d7e6; --blue:#528bff; --green:#4ed39a; --red:#ff5d67; --amber:#f7bd54; }
+    * { box-sizing:border-box; } body { margin:0; background:radial-gradient(circle at 76% 0%, #142a3a 0, transparent 30%), var(--bg); color:var(--text); font-family:Manrope, sans-serif; }
+    .app { min-height:100vh; display:grid; grid-template-columns:minmax(300px, 40%) 1fr; }
+    .left-panel { padding:28px; border-right:1px solid var(--line); background:rgba(9,15,22,.88); }
+    .right-area { padding:34px; min-width:0; }
+    .brand { display:flex; align-items:center; gap:12px; margin-bottom:34px; font-size:20px; font-weight:800; letter-spacing:-.5px; }
+    .brand-mark { display:grid; place-items:center; width:38px; height:38px; border:1px solid var(--cyan); border-radius:11px; color:var(--cyan); box-shadow:0 0 22px #36d7e633; }
+    .eyebrow { color:var(--cyan); font:500 10px 'DM Mono',monospace; letter-spacing:1.7px; text-transform:uppercase; }
+    .card { background:linear-gradient(135deg, rgba(21,31,43,.96), rgba(13,22,31,.96)); border:1px solid var(--line); border-radius:16px; }
+    .info-card { padding:25px; position:relative; overflow:hidden; } .info-card:after { content:''; position:absolute; width:135px; height:135px; border:1px solid #36d7e633; border-radius:50%; right:-58px; top:-61px; }
+    h1 { font-size:25px; line-height:1.22; letter-spacing:-1px; margin:9px 0 14px; } .info-card p { margin:0; color:#a9b9c9; font-size:13px; line-height:1.7; }
+    .benefits { padding:20px 0 0; margin:20px 0 0; border-top:1px solid var(--line); list-style:none; display:grid; gap:13px; } .benefits li { display:flex; gap:10px; align-items:flex-start; font-size:12px; color:#c7d3df; } .benefits i { color:var(--green); margin-top:3px; }
+    .device-card { padding:19px 22px; margin-top:18px; display:flex; justify-content:space-between; align-items:center; } .device-card .device { font-size:13px; font-weight:700; } .device-card small { color:var(--muted); display:block; margin-top:4px; } .online { color:var(--green); font:500 10px 'DM Mono',monospace; } .online:before { content:''; display:inline-block; width:7px; height:7px; margin-right:6px; border-radius:50%; background:currentColor; box-shadow:0 0 10px currentColor; }
+    .section-title { display:flex; justify-content:space-between; align-items:end; margin-bottom:26px; } .section-title h2 { margin:5px 0 0; font-size:26px; letter-spacing:-1px; } .system-state { padding:8px 11px; border-radius:7px; font:500 10px 'DM Mono',monospace; color:var(--green); border:1px solid #4ed39a55; background:#4ed39a13; }
+    .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:15px; margin-bottom:19px; } .stat { padding:17px 18px; } .stat-label { display:flex; align-items:center; gap:7px; color:var(--muted); font-size:11px; } .stat-label i { color:var(--cyan); } .stat-value { font:500 25px 'DM Mono',monospace; margin-top:10px; } .stat-value.red { color:var(--red); } .stat-value.blue { color:var(--blue); }
+    .chart-card { padding:23px; margin-bottom:19px; } .card-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; } .card-head h3 { font-size:14px; margin:0; } .legend { display:flex; gap:14px; color:var(--muted); font-size:10px; } .legend span:before { content:''; display:inline-block; width:7px; height:7px; margin:0 5px 1px 0; border-radius:50%; background:var(--cyan); } .legend span:last-child:before { background:var(--amber); }
+    .chart-wrap { height:260px; } .signal-summary { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:19px; } .signal-summary div { padding:12px 14px; background:#0b131c; border-radius:10px; font-size:11px; color:var(--muted); } .signal-summary strong { display:block; color:var(--text); font:500 15px 'DM Mono',monospace; margin-top:4px; }
+    .bottom { display:grid; grid-template-columns:1fr 1fr; gap:19px; } .commands, .logs { padding:22px; } .commands h3, .logs h3 { margin:0 0 16px; font-size:14px; } .command-buttons { display:grid; grid-template-columns:1fr 1fr; gap:10px; } button { padding:13px 10px; border:1px solid; border-radius:9px; cursor:pointer; font:600 11px Manrope,sans-serif; color:var(--text); background:transparent; transition:.2s; } button:hover { transform:translateY(-2px); } .blue-btn { border-color:#528bff77; color:#9cbcff; background:#528bff12; } .red-btn { border-color:#ff5d6777; color:#ffabb1; background:#ff5d6712; }
+    .logs { min-height:200px; } .log-list { max-height:214px; overflow:auto; padding-right:4px; } .log-row { display:grid; grid-template-columns:69px 1fr; gap:10px; padding:10px 0; border-top:1px solid #26374999; font-size:11px; } .log-row:first-child { border-top:0; padding-top:0; } .log-time { color:#6f8295; font-family:'DM Mono',monospace; } .log-message { color:#bdcad7; } .tag { display:inline-block; margin-right:6px; font:500 9px 'DM Mono',monospace; } .tag.in { color:var(--cyan); } .tag.out { color:var(--amber); } .tag.system { color:var(--green); }
+    @media (max-width:980px) { .app { grid-template-columns:1fr; } .left-panel { border-right:0; border-bottom:1px solid var(--line); } .right-area { padding:26px; } } @media (max-width:620px) { .stats,.bottom { grid-template-columns:1fr; } .section-title { align-items:flex-start; gap:12px; flex-direction:column; } .left-panel,.right-area { padding:20px; } }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <aside class="left-panel">
+      <div class="brand"><span class="brand-mark"><i class="fa-solid fa-shield-halved"></i></span> CYBERHUNTER</div>
+      <section class="card info-card">
+        <span class="eyebrow">Aktif Savunma Platformu</span>
+        <h1>IoT ağınızı görünür, ölçülebilir ve güvenli tutun.</h1>
+        <p>CyberHunter, bağlı cihazlardaki fiziksel ve ağ tabanlı anormallikleri izleyerek tehditlere hızlı müdahale etmenizi sağlar.</p>
+        <ul class="benefits">
+          <li><i class="fa-solid fa-circle-check"></i><span><b>Anlık izleme:</b> ESP32 telemetrisi canlı olarak takip edilir.</span></li>
+          <li><i class="fa-solid fa-circle-check"></i><span><b>Çift yönlü kontrol:</b> Cihaza giden komutlar ve dönüş sinyalleri tek ekranda görünür.</span></li>
+          <li><i class="fa-solid fa-circle-check"></i><span><b>Olay kaydı:</b> Kritik hareketler denetlenebilir loglarda saklanır.</span></li>
+        </ul>
+      </section>
+      <section class="card device-card">
+        <div><span class="device"><i class="fa-solid fa-microchip" style="color:var(--cyan)"></i> ESP32 LED Modülü</span><small>esp32-led-01</small></div>
+        <span class="online" id="iotStatus">BAĞLANIYOR</span>
+      </section>
+    </aside>
+    <section class="right-area">
+      <header class="section-title"><div><span class="eyebrow">Canlı izleme</span><h2>Kontrol merkezi</h2></div><span class="system-state" id="systemState">● SİSTEM AKTİF</span></header>
+      <div class="stats">
+        <article class="card stat"><span class="stat-label"><i class="fa-solid fa-arrow-down"></i> ESP32'DEN GELEN</span><div class="stat-value blue" id="receivedCount">0</div></article>
+        <article class="card stat"><span class="stat-label"><i class="fa-solid fa-arrow-up"></i> ESP32'YE GÖNDERİLEN</span><div class="stat-value" id="sentCount">0</div></article>
+        <article class="card stat"><span class="stat-label"><i class="fa-solid fa-triangle-exclamation"></i> TEHDİT SEVİYESİ</span><div class="stat-value red" id="threatLevel">0 / 10</div></article>
+      </div>
+      <section class="card chart-card">
+        <div class="card-head"><h3><i class="fa-solid fa-chart-line" style="color:var(--cyan)"></i> Sinyal akışı ve seviye analizi</h3><div class="legend"><span>ESP32 → Panel</span><span>Panel → ESP32</span></div></div>
+        <div class="chart-wrap"><canvas id="signalChart"></canvas></div>
+        <div class="signal-summary"><div>Son alınan sinyal<strong id="lastReceived">—</strong></div><div>Son gönderilen komut<strong id="lastSent">—</strong></div></div>
+      </section>
+      <div class="bottom">
+        <section class="card commands"><h3><i class="fa-solid fa-tower-broadcast" style="color:var(--cyan)"></i> Uzaktan müdahale</h3><div class="command-buttons"><button class="blue-btn" onclick="sendCommand('MAVI_YAK')"><i class="fa-solid fa-eye"></i> MAVİ LED'İ YAK</button><button class="red-btn" onclick="sendCommand('KIRMIZI_YAK')"><i class="fa-solid fa-power-off"></i> KIRMIZI ALARM</button></div></section>
+        <section class="card logs"><h3><i class="fa-solid fa-rectangle-list" style="color:var(--cyan)"></i> Olay logları</h3><div class="log-list" id="logList"><div class="log-row"><span class="log-time">ŞİMDİ</span><span class="log-message"><b class="tag system">SİSTEM</b>Canlı veri akışı bekleniyor.</span></div></div></section>
+      </div>
+    </section>
+  </main>
+  <script>
+    const API_BASE = window.CYBERHUNTER_API_URL || `http://${window.location.hostname || '10.104.1.89'}:8000`;
+    const WS_BASE = API_BASE.replace(/^http/, 'ws');
+    const DEVICE_ID = 'esp32-led-01';
+    let received = 0, sent = 0, threat = 0, chart, ws;
+    const labels = Array.from({length: 8}, () => '—'), incoming = Array(8).fill(0), outgoing = Array(8).fill(0);
+    const $ = id => document.getElementById(id);
+    function time() { return new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'}); }
+    function initChart() { chart = new Chart($('signalChart'), { type:'line', data:{ labels, datasets:[{label:'ESP32 → Panel',data:incoming,borderColor:'#36d7e6',backgroundColor:'#36d7e622',fill:true,tension:.35,pointRadius:3},{label:'Panel → ESP32',data:outgoing,borderColor:'#f7bd54',backgroundColor:'#f7bd5400',borderDash:[5,5],tension:.35,pointRadius:3}] }, options:{responsive:true,maintainAspectRatio:false,animation:{duration:350},scales:{x:{grid:{color:'#26374955'},ticks:{color:'#8292a6',font:{size:10}}},y:{min:0,max:100,grid:{color:'#26374988'},ticks:{color:'#8292a6',font:{size:10},callback:v=>v+'%'}}},plugins:{legend:{display:false}}} }); }
+    function pushSignal(direction, level, label=time()) { const target = direction === 'in' ? incoming : outgoing; labels.push(label); labels.shift(); incoming.push(direction === 'in' ? level : 0); incoming.shift(); outgoing.push(direction === 'out' ? level : 0); outgoing.shift(); chart.update(); }
+    function addLog(type, message, direction='system') { const row=document.createElement('div'); row.className='log-row'; row.innerHTML=`<span class="log-time">${time()}</span><span class="log-message"><b class="tag ${direction}">${type}</b>${message}</span>`; $('logList').prepend(row); }
+    function refreshStats() { $('receivedCount').textContent=received; $('sentCount').textContent=sent; $('threatLevel').textContent=threat+' / 10'; $('systemState').textContent=threat >= 8 ? '● KRİTİK UYARI' : '● SİSTEM AKTİF'; $('systemState').style.color=threat >= 8 ? 'var(--red)' : 'var(--green)'; }
+    function receiveSignal(data) { received++; const isRed=data.led==='red'; threat=isRed?10:Math.max(0,threat-1); const level=isRed?95:data.led==='blue'?68:22; pushSignal('in',level); $('lastReceived').textContent=`${data.led || 'durum'} · %${level}`; addLog('ESP32 → PANEL', `Cihaz durumu alındı: ${data.led || 'bilinmiyor'} (${data.sequence ?? '-'}. paket)`, 'in'); refreshStats(); }
+    async function sendCommand(command) { sent++; const level=command==='KIRMIZI_YAK'?92:65; pushSignal('out',level); $('lastSent').textContent=`${command.replace('_',' ')} · %${level}`; addLog('PANEL → ESP32', `${command.replace('_',' ')} komutu iletildi.`, 'out'); refreshStats(); try { const response=await fetch(`${API_BASE}/api/iot/commands`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_id:DEVICE_ID,komut:command})}); if(!response.ok) throw new Error(); } catch(e) { addLog('BAĞLANTI', 'Komut kuyruğa iletilemedi; backend bağlantısını kontrol edin.', 'system'); } }
+    function connect() { ws=new WebSocket(`${WS_BASE}/ws`); ws.onopen=()=>{$('iotStatus').textContent='ÇEVRİMİÇİ';}; ws.onmessage=e=>{try{const data=JSON.parse(e.data);if(data.type==='device-state'&&data.deviceId===DEVICE_ID) receiveSignal(data);}catch(_){}}; ws.onclose=()=>{$('iotStatus').textContent='YENİDEN BAĞLANIYOR'; setTimeout(connect,3000);}; ws.onerror=()=>{$('iotStatus').textContent='BAĞLANTI YOK';}; }
+    async function loadLogs() { try { const r=await fetch(`${API_BASE}/api/logs`); if(!r.ok)return; const logs=await r.json(); logs.reverse().forEach(log=>addLog(log.type,log.message,log.type.includes('DASHBOARD')?'out':log.type.includes('ESP32')?'in':'system')); } catch(_){} }
+    window.addEventListener('load',()=>{initChart(); refreshStats(); loadLogs(); connect();});
+  </script>
+</body>
+</html>

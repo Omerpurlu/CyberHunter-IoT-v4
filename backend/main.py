@@ -1,25 +1,27 @@
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
+import hashlib
+import hmac
+import logging
+import os
+import time
+from datetime import datetime, timedelta
+
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import hmac
-import hashlib
-import time
-import logging
+from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
-# --- LOGLAMA SİSTEMİ (Emir'in Teşhis Aracı) ---
 logger = logging.getLogger("uvicorn.error")
 
-# --- SQLALCHEMY VERİTABANI KÜTÜPHANELERİ ---
-from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
-
-SQLALCHEMY_DATABASE_URL = "sqlite:///CyberHunter.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///CyberHunter.db")
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+
 class LedLog(Base):
     __tablename__ = "LedLoglari"
+
     id = Column(Integer, primary_key=True, index=True)
     device_id = Column(String, index=True)
     led = Column(String)
@@ -28,16 +30,34 @@ class LedLog(Base):
     nonce = Column(String)
     server_received_at = Column(Integer)
 
+
 class DeviceCommand(Base):
     __tablename__ = "CihazEmirleri"
+
     id = Column(Integer, primary_key=True, index=True)
     device_id = Column(String, index=True)
-    komut = Column(String) # Örn: "KIRMIZI_YAK", "MAVI_YAK"
-    durum = Column(String, default="bekliyor") # bekliyor, tamamlandi
+    komut = Column(String)
+    durum = Column(String, default="bekliyor")
     olusturulma_zamani = Column(Integer)
 
-# TABLO TANIMLAMALARI BİTTİKTEN SONRA, EN SOLA DAYALI ŞEKİLDE:
+
 Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="CyberHunter IoT Backend")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+DEVICE_ID = "esp32-led-01"
+DEVICE_SECRET = os.getenv("DEVICE_SECRET", "CyberHunter_2026_SecretKey!")
+last_sequence = 0
+used_nonces: dict[str, int] = {}
+NONCE_TTL_MS = 300000
+
 
 def get_db():
     db = SessionLocal()
@@ -47,7 +67,6 @@ def get_db():
         db.close()
 
 
-# --- WEBSOCKET YAYIN İSTASYONU ---
 class ConnectionManager:
     def __init__(self):
         self.active_connections: list[WebSocket] = []
@@ -61,30 +80,23 @@ class ConnectionManager:
             self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
+        disconnected = []
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
             except Exception:
-                pass # Hatalı/Kopan istemciyi yoksay
+                disconnected.append(connection)
+        for connection in disconnected:
+            self.disconnect(connection)
+
 
 manager = ConnectionManager()
-app = FastAPI(title="CyberHunter IoT Backend")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-DEVICE_SECRET = "CyberHunter_2026_SecretKey!"
-last_sequence = 0
-used_nonces = set()
 
 class CommandRequest(BaseModel):
     device_id: str
     komut: str
+
 
 class IoTRequest(BaseModel):
     deviceId: str
@@ -93,6 +105,7 @@ class IoTRequest(BaseModel):
     timestamp: int
     nonce: str
     signature: str
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -103,16 +116,21 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-@app.get("/api/logs")
+
+@app.get("/api/db-logs")
 async def get_past_logs(limit: int = 50, db: Session = Depends(get_db)):
-    gecmis_loglar = db.query(LedLog).order_by(LedLog.id.desc()).limit(limit).all()
-    return gecmis_loglar
+    return db.query(LedLog).order_by(LedLog.id.desc()).limit(limit).all()
+
 
 @app.get("/api/iot/devices/{device_id}/state")
 async def get_device_state(device_id: str, db: Session = Depends(get_db)):
-    last_log = db.query(LedLog).filter(LedLog.device_id == device_id).order_by(LedLog.id.desc()).first()
-    su_an_ms = int(time.time() * 1000)
-    
+    last_log = (
+        db.query(LedLog)
+        .filter(LedLog.device_id == device_id)
+        .order_by(LedLog.id.desc())
+        .first()
+    )
+    now_ms = int(time.time() * 1000)
     if not last_log:
         return {
             "deviceId": device_id,
@@ -120,153 +138,154 @@ async def get_device_state(device_id: str, db: Session = Depends(get_db)):
             "online": False,
             "sequence": 0,
             "deviceTimestamp": None,
-            "serverReceivedAt": None
+            "serverReceivedAt": None,
         }
-    
-    is_online = (su_an_ms - last_log.server_received_at) < 30000
-
     return {
         "deviceId": last_log.device_id,
         "led": last_log.led,
-        "online": is_online,
+        "online": now_ms - last_log.server_received_at < 30000,
         "sequence": last_log.sequence,
         "deviceTimestamp": last_log.device_timestamp,
-        "serverReceivedAt": last_log.server_received_at
+        "serverReceivedAt": last_log.server_received_at,
     }
 
-# --- HTTP API KAPISI (GÜÇLENDİRİLMİŞ HATA YAKALAMA İLE) ---
+
 @app.post("/api/iot/led-state")
 async def receive_led_state(req: IoTRequest, db: Session = Depends(get_db)):
     global last_sequence
-    
-    try:
-        logger.info(
-            "LED istegi alindi | device=%s led=%s sequence=%s",
-            req.deviceId,
-            req.led,
-            req.sequence
-        )
+    if req.deviceId != DEVICE_ID:
+        raise HTTPException(status_code=400, detail="Geçersiz cihaz kimliği")
+    if req.led not in {"blue", "red", "off"}:
+        raise HTTPException(status_code=400, detail="Geçersiz LED durumu")
 
-        logger.info("Asama 1: device ve led kontrolu")
-        if req.deviceId != "esp32-led-01":
-            raise HTTPException(status_code=400, detail="Geçersiz Cihaz Kimliği")
-        if req.led not in ["blue", "red", "off"]:
-            raise HTTPException(status_code=400, detail="Geçersiz LED Durumu")
+    signed_value = f"{req.deviceId}|{req.led}|{req.sequence}|{req.timestamp}|{req.nonce}"
+    expected_signature = hmac.new(
+        DEVICE_SECRET.encode("utf-8"), signed_value.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(expected_signature, req.signature):
+        raise HTTPException(status_code=401, detail="Geçersiz imza")
 
-        logger.info("Asama 2 ve 5: HMAC, timestamp ve nonce kontrolu")
-        imzalanacak_metin = f"{req.deviceId}|{req.led}|{req.sequence}|{req.timestamp}|{req.nonce}"
-        hesaplanan_imza = hmac.new(
-            DEVICE_SECRET.encode('utf-8'),
-            imzalanacak_metin.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
+    now_ms = int(time.time() * 1000)
+    if abs(now_ms - req.timestamp) > NONCE_TTL_MS:
+        raise HTTPException(status_code=400, detail="Zaman aşımı")
+    expired_nonces = [nonce for nonce, created_at in used_nonces.items() if now_ms - created_at > NONCE_TTL_MS]
+    for nonce in expired_nonces:
+        del used_nonces[nonce]
+    if req.nonce in used_nonces:
+        raise HTTPException(status_code=400, detail="Nonce daha önce kullanılmış")
+    latest_log = db.query(LedLog.sequence).order_by(LedLog.sequence.desc()).first()
+    latest_persisted_sequence = latest_log[0] if latest_log else 0
+    if req.sequence <= max(last_sequence, latest_persisted_sequence):
+        raise HTTPException(status_code=400, detail="Geçersiz sıra numarası")
 
-        if not hmac.compare_digest(hesaplanan_imza, req.signature):
-            raise HTTPException(status_code=401, detail="Geçersiz İmza!")
+    last_sequence = req.sequence
+    used_nonces[req.nonce] = now_ms
+    log = LedLog(
+        device_id=req.deviceId,
+        led=req.led,
+        sequence=req.sequence,
+        device_timestamp=req.timestamp,
+        nonce=req.nonce,
+        server_received_at=now_ms,
+    )
+    db.add(log)
+    db.commit()
 
-        su_an_ms = int(time.time() * 1000)
-        if (su_an_ms - req.timestamp) > 300000:
-            raise HTTPException(status_code=400, detail="Zaman aşımı (Replay Attack)")
-            
-        if req.nonce in used_nonces:
-            raise HTTPException(status_code=400, detail="Nonce daha önce kullanılmış")
+    event = {
+        "type": "device-state",
+        "deviceId": req.deviceId,
+        "led": req.led,
+        "online": True,
+        "sequence": req.sequence,
+        "deviceTimestamp": req.timestamp,
+        "serverReceivedAt": now_ms,
+    }
+    await manager.broadcast(event)
+    return {"ok": True, **event}
 
-        # --- EMIR ICIN SEQUENCE DEBUG LOGLARI ---
-        logger.info("=== SEQUENCE DEBUG KONTROLU ===")
-        logger.info(f"Cihaz ID: {req.deviceId}")
-        logger.info(f"Gelen Sequence: {req.sequence}")
-        logger.info(f"Backend last_sequence: {last_sequence}")
-        logger.info(f"Gelen > Last Sonucu: {req.sequence > last_sequence}")
-        logger.info("===============================")
-        # ----------------------------------------
 
-        # SADECE BİR KERE KONTROL EDİYORUZ
-        if req.sequence <= last_sequence:
-            raise HTTPException(status_code=400, detail="Geçersiz sıra numarası")
-
-        # BÜTÜN GÜVENLİK TESTLERİNİ GEÇTİYSE YENİ DEĞERLERİ KAYDEDİYORUZ
-        last_sequence = req.sequence
-        used_nonces.add(req.nonce)
-
-        logger.info("Asama 6: veritabani kaydi")
-        try:
-            yeni_log = LedLog(
-                device_id=req.deviceId,
-                led=req.led,
-                sequence=req.sequence,
-                device_timestamp=req.timestamp,
-                nonce=req.nonce,
-                server_received_at=su_an_ms
-            )
-            db.add(yeni_log)
-            db.commit()
-            db.refresh(yeni_log)
-        except Exception:
-            db.rollback()
-            logger.exception("LED veritabani kaydi basarisiz")
-            raise
-
-        logger.info("Asama 7: websocket yayini")
-        try:
-            canli_veri = {
-                "type": "device-state",
-                "deviceId": req.deviceId,
-                "led": req.led,
-                "online": True,
-                "sequence": req.sequence,
-                "deviceTimestamp": req.timestamp,
-                "serverReceivedAt": su_an_ms
-            }
-            await manager.broadcast(canli_veri)
-        except Exception:
-            logger.exception("WebSocket yayini basarisiz")
-
-        return {
-            "ok": True,
-            "deviceId": req.deviceId,
-            "led": req.led,
-            "serverReceivedAt": su_an_ms
-        }
-
-    except Exception:
-        logger.exception(
-            "LED endpoint'inde beklenmeyen hata | device=%s led=%s sequence=%s",
-            getattr(req, "deviceId", None),
-            getattr(req, "led", None),
-            getattr(req, "sequence", None)
-        )
-        raise
-    # --- 1. WEB SİTESİNDEN CİHAZA EMİR GÖNDERME KAPISI ---
 @app.post("/api/iot/commands")
 async def create_command(req: CommandRequest, db: Session = Depends(get_db)):
-    yeni_emir = DeviceCommand(
+    if req.device_id != DEVICE_ID:
+        raise HTTPException(status_code=400, detail="Geçersiz cihaz kimliği")
+    if req.komut not in {"MAVI_YAK", "KIRMIZI_YAK"}:
+        raise HTTPException(status_code=400, detail="Geçersiz komut")
+    command = DeviceCommand(
         device_id=req.device_id,
         komut=req.komut,
         durum="bekliyor",
-        olusturulma_zamani=int(time.time() * 1000)
+        olusturulma_zamani=int(time.time() * 1000),
     )
-    db.add(yeni_emir)
+    db.add(command)
     db.commit()
-    return {"mesaj": "Siber emir basariyla siraya alindi", "komut": req.komut}
+    return {"mesaj": "Komut sıraya alındı", "komut": req.komut}
 
-# --- 2. ESP32'NİN "BANA EMİR VAR MI?" DİYE SORDUĞU KAPI ---
+
 @app.get("/api/iot/commands/pending/{device_id}")
 async def get_pending_commands(device_id: str, db: Session = Depends(get_db)):
-    bekleyen_emir = db.query(DeviceCommand).filter(
-        DeviceCommand.device_id == device_id,
-        DeviceCommand.durum == "bekliyor"
-    ).first()
+    command = (
+        db.query(DeviceCommand)
+        .filter(DeviceCommand.device_id == device_id, DeviceCommand.durum == "bekliyor")
+        .first()
+    )
+    return {"id": command.id, "komut": command.komut} if command else {"id": None, "komut": "YOK"}
 
-    if bekleyen_emir:
-        return {"id": bekleyen_emir.id, "komut": bekleyen_emir.komut}
-    return {"id": None, "komut": "YOK"}
 
-# --- 3. ESP32'NİN "EMRİ YERİNE GETİRDİM" DEDİĞİ KAPI ---
 @app.post("/api/iot/commands/complete/{command_id}")
 async def complete_command(command_id: int, db: Session = Depends(get_db)):
-    emir = db.query(DeviceCommand).filter(DeviceCommand.id == command_id).first()
-    if emir:
-        emir.durum = "tamamlandi"
-        db.commit()
-        return {"mesaj": "Emir tamamlandi olarak isaretlendi"}
-    raise HTTPException(status_code=404, detail="Emir bulunamadi")
+    command = db.query(DeviceCommand).filter(DeviceCommand.id == command_id).first()
+    if not command:
+        raise HTTPException(status_code=404, detail="Komut bulunamadı")
+    command.durum = "tamamlandi"
+    db.commit()
+    return {"mesaj": "Komut tamamlandı olarak işaretlendi"}
+
+
+@app.get("/api/stats")
+async def get_stats(db: Session = Depends(get_db)):
+    now = datetime.now()
+    data = []
+    for i in range(5, -1, -1):
+        time_point = now - timedelta(seconds=i * 3)
+        start_ms = int((time_point - timedelta(seconds=3)).timestamp() * 1000)
+        end_ms = int(time_point.timestamp() * 1000)
+        state = (
+            db.query(LedLog)
+            .filter(LedLog.server_received_at > start_ms, LedLog.server_received_at <= end_ms)
+            .order_by(LedLog.id.desc())
+            .first()
+        )
+        command_count = db.query(DeviceCommand).filter(
+            DeviceCommand.olusturulma_zamani > start_ms,
+            DeviceCommand.olusturulma_zamani <= end_ms,
+        ).count()
+        data.append({
+            "time": time_point.strftime("%H:%M:%S"),
+            "gelenSinyal": {"red": 95, "blue": 65, "off": 20}.get(state.led, 0) if state else 0,
+            "gidenKomut": 80 if command_count else 0,
+        })
+    return data
+
+
+@app.get("/api/logs")
+async def get_logs(limit: int = 50, db: Session = Depends(get_db)):
+    device_logs = db.query(LedLog).order_by(LedLog.server_received_at.desc()).limit(limit).all()
+    command_logs = db.query(DeviceCommand).order_by(DeviceCommand.olusturulma_zamani.desc()).limit(limit).all()
+    events = [
+        {
+            "timestamp": log.server_received_at,
+            "time": datetime.fromtimestamp(log.server_received_at / 1000).strftime("%H:%M:%S"),
+            "type": "ESP32 -> DASHBOARD",
+            "message": f"{log.device_id} cihazından {log.led} LED durumu alındı (paket #{log.sequence}).",
+        }
+        for log in device_logs
+    ] + [
+        {
+            "timestamp": command.olusturulma_zamani,
+            "time": datetime.fromtimestamp(command.olusturulma_zamani / 1000).strftime("%H:%M:%S"),
+            "type": "DASHBOARD -> ESP32",
+            "message": f"{command.device_id} cihazına {command.komut} komutu gönderildi ({command.durum}).",
+        }
+        for command in command_logs
+    ]
+    return sorted(events, key=lambda event: event["timestamp"], reverse=True)[:limit]
