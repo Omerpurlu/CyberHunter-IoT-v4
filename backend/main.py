@@ -6,13 +6,14 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy import Column, Integer, String, Text, create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
+
+from crypto_utils import LogDecryptionError, decrypt_text, encrypt_text
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -28,17 +29,7 @@ def require_env(name: str) -> str:
 
 
 DEVICE_SECRET = require_env("DEVICE_SECRET")
-FERNET_KEYS = [key.strip() for key in require_env("FERNET_KEYS").split(",") if key.strip()]
 DATABASE_PATH = require_env("DATABASE_PATH")
-
-if not FERNET_KEYS:
-    raise RuntimeError("FERNET_KEYS must contain at least one Fernet key")
-
-for key in FERNET_KEYS:
-    try:
-        Fernet(key.encode("ascii"))
-    except (ValueError, UnicodeEncodeError) as exc:
-        raise RuntimeError("FERNET_KEYS contains an invalid Fernet key") from exc
 
 database_file = Path(DATABASE_PATH)
 if not database_file.is_absolute():
@@ -60,6 +51,8 @@ class LedLog(Base):
     device_timestamp = Column(Integer)
     nonce = Column(String)
     server_received_at = Column(Integer)
+    message = Column(Text, nullable=True)
+    encryption_version = Column(Integer, nullable=False, default=0, server_default="0")
 
 
 class DeviceCommand(Base):
@@ -70,9 +63,34 @@ class DeviceCommand(Base):
     komut = Column(String)
     durum = Column(String, default="bekliyor")
     olusturulma_zamani = Column(Integer)
+    message = Column(Text, nullable=True)
+    encryption_version = Column(Integer, nullable=False, default=0, server_default="0")
 
 
 Base.metadata.create_all(bind=engine)
+
+
+def ensure_log_encryption_columns() -> None:
+    with engine.begin() as connection:
+        for table_name in ("LedLoglari", "CihazEmirleri"):
+            columns = {
+                row[1]
+                for row in connection.exec_driver_sql(
+                    f'PRAGMA table_info("{table_name}")'
+                )
+            }
+            if "message" not in columns:
+                connection.exec_driver_sql(
+                    f'ALTER TABLE "{table_name}" ADD COLUMN message TEXT'
+                )
+            if "encryption_version" not in columns:
+                connection.exec_driver_sql(
+                    f'ALTER TABLE "{table_name}" '
+                    "ADD COLUMN encryption_version INTEGER NOT NULL DEFAULT 0"
+                )
+
+
+ensure_log_encryption_columns()
 
 app = FastAPI(title="CyberHunter IoT Backend")
 app.add_middleware(
@@ -87,6 +105,35 @@ DEVICE_ID = "esp32-led-01"
 last_sequence = 0
 used_nonces: dict[str, int] = {}
 NONCE_TTL_MS = 300000
+UNREADABLE_ENCRYPTED_LOG = "[Şifreli log çözülemedi]"
+
+
+def device_log_message(log: LedLog) -> str:
+    return (
+        f"{log.device_id} cihazından {log.led} LED durumu alındı "
+        f"(paket #{log.sequence})."
+    )
+
+
+def command_log_message(command: DeviceCommand) -> str:
+    return (
+        f"{command.device_id} cihazına {command.komut} komutu gönderildi "
+        f"({command.durum})."
+    )
+
+
+def readable_log_message(record, legacy_message) -> str:
+    if record.encryption_version == 1:
+        try:
+            return decrypt_text(record.message) or ""
+        except LogDecryptionError:
+            logger.warning(
+                "Encrypted log could not be decrypted (table=%s, id=%s)",
+                record.__tablename__,
+                record.id,
+            )
+            return UNREADABLE_ENCRYPTED_LOG
+    return record.message if record.message is not None else legacy_message(record)
 
 
 def get_db():
@@ -149,7 +196,19 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.get("/api/db-logs")
 async def get_past_logs(limit: int = 50, db: Session = Depends(get_db)):
-    return db.query(LedLog).order_by(LedLog.id.desc()).limit(limit).all()
+    logs = db.query(LedLog).order_by(LedLog.id.desc()).limit(limit).all()
+    return [
+        {
+            "id": log.id,
+            "device_id": log.device_id,
+            "led": log.led,
+            "sequence": log.sequence,
+            "device_timestamp": log.device_timestamp,
+            "nonce": log.nonce,
+            "server_received_at": log.server_received_at,
+        }
+        for log in logs
+    ]
 
 
 @app.get("/api/iot/devices/{device_id}/state")
@@ -217,7 +276,9 @@ async def receive_led_state(req: IoTRequest, db: Session = Depends(get_db)):
         device_timestamp=req.timestamp,
         nonce=req.nonce,
         server_received_at=now_ms,
+        encryption_version=1,
     )
+    log.message = encrypt_text(device_log_message(log))
     db.add(log)
     db.commit()
 
@@ -245,7 +306,9 @@ async def create_command(req: CommandRequest, db: Session = Depends(get_db)):
         komut=req.komut,
         durum="bekliyor",
         olusturulma_zamani=int(time.time() * 1000),
+        encryption_version=1,
     )
+    command.message = encrypt_text(command_log_message(command))
     db.add(command)
     db.commit()
     return {"mesaj": "Komut sıraya alındı", "komut": req.komut}
@@ -306,7 +369,7 @@ async def get_logs(limit: int = 50, db: Session = Depends(get_db)):
             "timestamp": log.server_received_at,
             "time": datetime.fromtimestamp(log.server_received_at / 1000).strftime("%H:%M:%S"),
             "type": "ESP32 -> DASHBOARD",
-            "message": f"{log.device_id} cihazından {log.led} LED durumu alındı (paket #{log.sequence}).",
+            "message": readable_log_message(log, device_log_message),
         }
         for log in device_logs
     ] + [
@@ -314,7 +377,7 @@ async def get_logs(limit: int = 50, db: Session = Depends(get_db)):
             "timestamp": command.olusturulma_zamani,
             "time": datetime.fromtimestamp(command.olusturulma_zamani / 1000).strftime("%H:%M:%S"),
             "type": "DASHBOARD -> ESP32",
-            "message": f"{command.device_id} cihazına {command.komut} komutu gönderildi ({command.durum}).",
+            "message": readable_log_message(command, command_log_message),
         }
         for command in command_logs
     ]
