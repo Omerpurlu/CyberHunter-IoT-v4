@@ -5,10 +5,11 @@
 #include <Preferences.h>
 #include <mbedtls/md.h>
 #include <sys/time.h>
+#include "secrets.h"
 
 constexpr int BUTTON = 18, BLUE = 4, RED = 5, GREEN = 19;
 const char *WIFI = "YYU-Muhendislik-Wifi", *ID = "esp32-led-01";
-const char *SECRET = "CyberHunter_2026_SecretKey!";
+const char *SECRET = DEVICE_SECRET;
 
 // Backend bilgisayarının yerel ağ adresi ve portu.
 const char *STATE = "http://10.104.1.89:8000/api/iot/led-state";

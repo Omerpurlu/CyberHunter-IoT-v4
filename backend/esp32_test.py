@@ -4,11 +4,19 @@ import hashlib
 import time
 import uuid
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
 
 # --- BAÄLANTI BÄ°LGÄ°LERÄ° ---
 API_BASE = os.getenv("CYBERHUNTER_API_URL", "http://10.104.1.89:8000")
 URL = f"{API_BASE}/api/iot/led-state"
-SECRET = os.getenv("DEVICE_SECRET", "CyberHunter_2026_SecretKey!")
+SECRET = os.getenv("DEVICE_SECRET")
+if not SECRET:
+    raise RuntimeError("Required environment variable is missing: DEVICE_SECRET")
 
 # --- SAHTE ESP32 VERÄ°LERÄ° ---
 device_id = "esp32-led-01"

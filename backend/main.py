@@ -4,7 +4,10 @@ import logging
 import os
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 
+from cryptography.fernet import Fernet
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -13,7 +16,35 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 logger = logging.getLogger("uvicorn.error")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///CyberHunter.db")
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+
+
+def require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Required environment variable is missing: {name}")
+    return value
+
+
+DEVICE_SECRET = require_env("DEVICE_SECRET")
+FERNET_KEYS = [key.strip() for key in require_env("FERNET_KEYS").split(",") if key.strip()]
+DATABASE_PATH = require_env("DATABASE_PATH")
+
+if not FERNET_KEYS:
+    raise RuntimeError("FERNET_KEYS must contain at least one Fernet key")
+
+for key in FERNET_KEYS:
+    try:
+        Fernet(key.encode("ascii"))
+    except (ValueError, UnicodeEncodeError) as exc:
+        raise RuntimeError("FERNET_KEYS contains an invalid Fernet key") from exc
+
+database_file = Path(DATABASE_PATH)
+if not database_file.is_absolute():
+    database_file = BASE_DIR / database_file
+
+DATABASE_URL = f"sqlite:///{database_file.as_posix()}"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -53,7 +84,6 @@ app.add_middleware(
 )
 
 DEVICE_ID = "esp32-led-01"
-DEVICE_SECRET = os.getenv("DEVICE_SECRET", "CyberHunter_2026_SecretKey!")
 last_sequence = 0
 used_nonces: dict[str, int] = {}
 NONCE_TTL_MS = 300000
