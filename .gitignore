@@ -3,13 +3,26 @@ __pycache__/
 *.py[cod]
 *.db
 
+# Frontend generated files
+node_modules/
+dist/
+coverage/
+*.log
+
 # PlatformIO generated files
 .pio/
+
+# VS Code local settings
 .vscode/
+
+# ESP32 gerçek cihaz anahtarı
 esp32-firmware/include/secrets.h
 
-# Local environment files and editor metadata
+# Local environment files
 .env
 .env.*
 !.env.example
+
+# Operating system metadata
 .DS_Store
+Thumbs.db
