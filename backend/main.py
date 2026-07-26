@@ -10,10 +10,13 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, Text, create_engine
-from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from crypto_utils import LogDecryptionError, decrypt_text, encrypt_text
+from database import SessionLocal, engine
+from models import DeviceCommand, LedLog
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -29,68 +32,6 @@ def require_env(name: str) -> str:
 
 
 DEVICE_SECRET = require_env("DEVICE_SECRET")
-DATABASE_PATH = require_env("DATABASE_PATH")
-
-database_file = Path(DATABASE_PATH)
-if not database_file.is_absolute():
-    database_file = BASE_DIR / database_file
-
-DATABASE_URL = f"sqlite:///{database_file.as_posix()}"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-
-class LedLog(Base):
-    __tablename__ = "LedLoglari"
-
-    id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(String, index=True)
-    led = Column(String)
-    sequence = Column(Integer)
-    device_timestamp = Column(Integer)
-    nonce = Column(String)
-    server_received_at = Column(Integer)
-    message = Column(Text, nullable=True)
-    encryption_version = Column(Integer, nullable=False, default=0, server_default="0")
-
-
-class DeviceCommand(Base):
-    __tablename__ = "CihazEmirleri"
-
-    id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(String, index=True)
-    komut = Column(String)
-    durum = Column(String, default="bekliyor")
-    olusturulma_zamani = Column(Integer)
-    message = Column(Text, nullable=True)
-    encryption_version = Column(Integer, nullable=False, default=0, server_default="0")
-
-
-Base.metadata.create_all(bind=engine)
-
-
-def ensure_log_encryption_columns() -> None:
-    with engine.begin() as connection:
-        for table_name in ("LedLoglari", "CihazEmirleri"):
-            columns = {
-                row[1]
-                for row in connection.exec_driver_sql(
-                    f'PRAGMA table_info("{table_name}")'
-                )
-            }
-            if "message" not in columns:
-                connection.exec_driver_sql(
-                    f'ALTER TABLE "{table_name}" ADD COLUMN message TEXT'
-                )
-            if "encryption_version" not in columns:
-                connection.exec_driver_sql(
-                    f'ALTER TABLE "{table_name}" '
-                    "ADD COLUMN encryption_version INTEGER NOT NULL DEFAULT 0"
-                )
-
-
-ensure_log_encryption_columns()
 
 app = FastAPI(title="CyberHunter IoT Backend")
 app.add_middleware(
@@ -100,6 +41,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def verify_postgresql_connection() -> None:
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1")).scalar_one()
+    except SQLAlchemyError:
+        raise RuntimeError(
+            "PostgreSQL baglantisi dogrulanamadi; uygulama baslatilamadi."
+        ) from None
+
 
 DEVICE_ID = "esp32-led-01"
 last_sequence = 0
