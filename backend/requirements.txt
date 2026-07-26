@@ -3,3 +3,5 @@ uvicorn
 sqlalchemy
 python-dotenv
 cryptography
+psycopg[binary]==3.3.4
+alembic==1.18.5
