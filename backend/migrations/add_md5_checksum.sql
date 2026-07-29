@@ -1,0 +1,5 @@
+ALTER TABLE "LedLoglari"
+    ADD COLUMN IF NOT EXISTS md5_checksum VARCHAR(32);
+
+ALTER TABLE "CihazEmirleri"
+    ADD COLUMN IF NOT EXISTS md5_checksum VARCHAR(32);

@@ -15,6 +15,7 @@ class LedLog(Base):
     server_received_at = Column(BigInteger)
     message = Column(Text, nullable=True)
     encryption_version = Column(Integer, nullable=False, server_default="0")
+    md5_checksum = Column(String(32), nullable=True)
 
 
 class DeviceCommand(Base):
@@ -27,3 +28,4 @@ class DeviceCommand(Base):
     olusturulma_zamani = Column(BigInteger)
     message = Column(Text, nullable=True)
     encryption_version = Column(Integer, nullable=False, server_default="0")
+    md5_checksum = Column(String(32), nullable=True)

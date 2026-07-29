@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from crypto_utils import LogDecryptionError, decrypt_text, encrypt_text
 from database import SessionLocal, engine
+from hash_utils import device_command_payload, led_log_payload, md5_checksum
 from models import DeviceCommand, LedLog
 
 logger = logging.getLogger("uvicorn.error")
@@ -222,14 +223,26 @@ async def receive_led_state(req: IoTRequest, db: Session = Depends(get_db)):
 
     last_sequence = req.sequence
     used_nonces[req.nonce] = now_ms
+    server_received_at = now_ms
+    checksum = md5_checksum(
+        led_log_payload(
+            device_id=req.deviceId,
+            led=req.led,
+            sequence=req.sequence,
+            device_timestamp=req.timestamp,
+            nonce=req.nonce,
+            server_received_at=server_received_at,
+        )
+    )
     log = LedLog(
         device_id=req.deviceId,
         led=req.led,
         sequence=req.sequence,
         device_timestamp=req.timestamp,
         nonce=req.nonce,
-        server_received_at=now_ms,
+        server_received_at=server_received_at,
         encryption_version=1,
+        md5_checksum=checksum,
     )
     log.message = encrypt_text(device_log_message(log))
     db.add(log)
@@ -242,7 +255,7 @@ async def receive_led_state(req: IoTRequest, db: Session = Depends(get_db)):
         "online": True,
         "sequence": req.sequence,
         "deviceTimestamp": req.timestamp,
-        "serverReceivedAt": now_ms,
+        "serverReceivedAt": server_received_at,
     }
     await manager.broadcast(event)
     return {"ok": True, **event}
@@ -254,12 +267,21 @@ async def create_command(req: CommandRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Geçersiz cihaz kimliği")
     if req.komut not in {"MAVI_YAK", "KIRMIZI_YAK"}:
         raise HTTPException(status_code=400, detail="Geçersiz komut")
+    olusturulma_zamani = int(time.time() * 1000)
+    checksum = md5_checksum(
+        device_command_payload(
+            device_id=req.device_id,
+            komut=req.komut,
+            olusturulma_zamani=olusturulma_zamani,
+        )
+    )
     command = DeviceCommand(
         device_id=req.device_id,
         komut=req.komut,
         durum="bekliyor",
-        olusturulma_zamani=int(time.time() * 1000),
+        olusturulma_zamani=olusturulma_zamani,
         encryption_version=1,
+        md5_checksum=checksum,
     )
     command.message = encrypt_text(command_log_message(command))
     db.add(command)
@@ -323,6 +345,7 @@ async def get_logs(limit: int = 50, db: Session = Depends(get_db)):
             "time": datetime.fromtimestamp(log.server_received_at / 1000).strftime("%H:%M:%S"),
             "type": "ESP32 -> DASHBOARD",
             "message": readable_log_message(log, device_log_message),
+            "md5_checksum": getattr(log, "md5_checksum", None),
         }
         for log in device_logs
     ] + [
@@ -331,6 +354,7 @@ async def get_logs(limit: int = 50, db: Session = Depends(get_db)):
             "time": datetime.fromtimestamp(command.olusturulma_zamani / 1000).strftime("%H:%M:%S"),
             "type": "DASHBOARD -> ESP32",
             "message": readable_log_message(command, command_log_message),
+            "md5_checksum": getattr(command, "md5_checksum", None),
         }
         for command in command_logs
     ]
