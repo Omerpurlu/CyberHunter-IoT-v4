@@ -1,106 +1,156 @@
-import StatCard from '../components/StatCard';
-import StatusBadge from '../components/StatusBadge';
-import { istatistikKartlariniOlustur } from '../utils/securitySummary';
+import ArchitectureFlow from '../components/ArchitectureFlow';
+import InfoFeatureCard from '../components/InfoFeatureCard';
+import PageHeader from '../components/PageHeader';
+import SystemLiveSummary from '../components/SystemLiveSummary';
+import { tarihSaatFormatla } from '../utils/dateFormat';
 
-export default function SystemInfoPage({ sistemLoglari, sunucuDurumu, esp32Durumu, aktifLed }) {
-  const kartlar = istatistikKartlariniOlustur(sistemLoglari, esp32Durumu, aktifLed);
-  const yetenekler = ['Hibrit Honeypot', 'Siber İstihbarat', 'Otomatik Karar', 'Kesintisiz Çalışma'];
-
+function Icon({ path }) {
   return (
-    <div className="w-full flex flex-col gap-6 pb-8 animate-fade-in">
-      <section className="relative shrink-0 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 p-7 md:p-8 shadow-lg">
-        <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl"></div>
-        <div className="relative z-10 grid gap-8 xl:grid-cols-[1.45fr_0.55fr] xl:items-center">
-          <div>
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-extrabold tracking-tight text-white md:text-4xl">
-                Cyber <span className="text-indigo-500">Hunter</span>
-              </h1>
-              <span className="rounded-full border border-indigo-500/25 bg-indigo-500/10 px-3 py-1 text-xs font-bold text-indigo-300">
-                v1.0
-              </span>
-            </div>
-            <h2 className="max-w-3xl text-xl font-semibold leading-relaxed text-slate-200">
-              Yapay zekâ destekli, siber istihbarat toplayan fiziksel honeypot ve aktif savunma sistemi
-            </h2>
-            <p className="mt-5 max-w-3xl text-sm leading-7 text-slate-400">
-              Gerçek bir sunucu gibi davranarak saldırganları kontrollü bir tuzak ortama çeker, saldırı davranışlarını analiz eder, tehdit seviyesini sınıflandırır ve gerektiğinde fiziksel donanım katmanında otomatik karşılık üretir.
+    <svg aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d={path} />
+    </svg>
+  );
+}
+
+const benefits = ['Hızlı tespit', 'Otomatik değerlendirme', 'Güvenilir kayıt'];
+const components = [
+  ['Raspberry Pi', 'Bridge ve SDA/SCL veri aktarımı'],
+  ['ESP32', 'Risk değerlendirmesi'],
+  ['FastAPI', 'API ve iş mantığı'],
+  ['PostgreSQL', 'Kalıcı veri saklama'],
+  ['Dashboard', 'İzleme ve inceleme'],
+];
+const integrityItems = [
+  'event_id ile benzersiz kimliklendirme',
+  'security_events ve esp32_assessments ilişkisi',
+  'Hash ile eğitimsel kayıt karşılaştırması',
+  'Duplicate ve conflict kontrolü',
+  'PostgreSQL constraint ve index yapısı',
+];
+
+export default function SystemInfoPage({
+  guvenlikOlaylari,
+  guvenlikOlaylariYukleniyor,
+  guvenlikOlaylariHatasi,
+  sonDegerlendirmeOlayi,
+  sonAktiviteZamani,
+}) {
+  return (
+    <div className="flex w-full flex-col gap-6 pb-4 animate-fade-in lg:gap-7">
+      <PageHeader
+        eyebrow="SİSTEM GENEL BAKIŞ"
+        title="Sistem Bilgisi"
+        description="CyberHunter projesinin amacı, bileşenleri ve uçtan uca güvenlik mimarisi hakkında genel bilgiler."
+        meta={(
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3">
+            <p className="text-xs font-medium text-slate-400">Son güncelleme</p>
+            <p className="mt-1 whitespace-nowrap text-sm font-semibold text-slate-200">
+              {tarihSaatFormatla(sonAktiviteZamani)}
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              {['Fiziksel Honeypot', 'Yapay Zekâ Analizi', 'Siber İstihbarat', 'Aktif Savunma'].map((etiket, index) => (
-                <span
-                  key={etiket}
-                  className={`rounded-xl border px-4 py-2 text-xs font-semibold ${[
-                    'border-indigo-500/25 bg-indigo-500/10 text-indigo-300',
-                    'border-cyan-500/25 bg-cyan-500/10 text-cyan-300',
-                    'border-emerald-500/25 bg-emerald-500/10 text-emerald-300',
-                    'border-amber-500/25 bg-amber-500/10 text-amber-300',
-                  ][index]}`}
-                >
-                  {etiket}
-                </span>
-              ))}
-            </div>
           </div>
-          <div className="rounded-3xl border border-slate-800 bg-slate-950/70 p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Sistem durumu</p>
-            <h3 className="mt-2 text-xl font-bold text-white">Koruma Katmanı Aktif</h3>
-            <div className="mt-5 space-y-3">
-              <div className="flex justify-between rounded-xl bg-slate-900 p-3 text-sm">
-                <span className="text-slate-500">Bağlantı</span>
-                <StatusBadge sunucuDurumu={sunucuDurumu} />
-              </div>
-              <div className="flex justify-between rounded-xl bg-slate-900 p-3 text-sm">
-                <span className="text-slate-500">Cihaz</span>
-                <span className="font-mono text-indigo-300">esp32-led-01</span>
-              </div>
-              <div className="flex justify-between rounded-xl bg-slate-900 p-3 text-sm">
-                <span className="text-slate-500">Çalışma Modu</span>
-                <span className="font-semibold text-slate-200">Hibrit Savunma</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+        )}
+      />
 
-      <section className="rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-lg">
-        <div className="flex items-center justify-between">
+      <section className="relative overflow-hidden rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/25 p-5 shadow-xl shadow-black/10 sm:p-6 lg:p-7">
+        <div aria-hidden="true" className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
+        <div className="relative grid gap-7 xl:grid-cols-[0.58fr_1.42fr] xl:items-center">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-400">Canlı güvenlik özeti</p>
-            <h3 className="mt-1 text-xl font-bold text-white">Operasyonel sistem görünümü</h3>
-            <p className="mt-2 text-sm text-slate-500">Değerler mevcut loglar ve cihaz bağlantısından otomatik hesaplanır.</p>
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-indigo-400/20 bg-indigo-500/10 text-indigo-300 shadow-lg shadow-indigo-950/30">
+              <svg aria-hidden="true" className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" d="M12 3l7 3v5c0 4.5-2.8 8.2-7 10-4.2-1.8-7-5.5-7-10V6l7-3zm-3 9l2 2 4-5" />
+              </svg>
+            </div>
+            <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-300">
+              CyberHunter güvenlik platformu
+            </p>
+            <h2 className="mt-2 max-w-xl text-2xl font-bold leading-tight text-white sm:text-3xl">
+              IoT güvenlik olaylarını uçtan uca izleme ve değerlendirme sistemi
+            </h2>
+            <ul className="mt-5 space-y-3">
+              {[
+                'Saldırı verisi izlenir',
+                'ESP32 tarafından değerlendirilir',
+                "PostgreSQL'de bütünlüklü biçimde saklanır",
+              ].map(item => (
+                <li key={item} className="flex items-center gap-3 text-sm text-slate-300">
+                  <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-300">✓</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
           </div>
-          <StatusBadge sunucuDurumu={sunucuDurumu} />
-        </div>
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {kartlar.map(kart => <StatCard key={kart.baslik} kart={kart} />)}
+
+          <div className="min-w-0 rounded-3xl border border-slate-800 bg-slate-950/55 p-4 sm:p-5">
+            <div className="mb-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Uçtan uca mimari</p>
+              <h3 className="mt-1 text-lg font-bold text-white">Güvenlik verisinin izlediği yol</h3>
+            </div>
+            <ArchitectureFlow />
+          </div>
         </div>
       </section>
 
-      <section className="rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-lg">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-400">Sistem mimarisi</p>
-        <h3 className="mt-1 text-xl font-bold text-white">CyberHunter Çalışma Prensibi</h3>
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {['Trafik Yakalama', 'Tuzak Ortam', 'AI Analizi', 'Fiziksel Müdahale'].map(ad => (
-            <div key={ad} className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
-              <h4 className="font-bold text-white">{ad}</h4>
-              <p className="mt-2 text-sm leading-6 text-slate-500">Saldırı davranışlarını görünür ve ölçülebilir hâle getirir.</p>
-            </div>
-          ))}
-        </div>
+      <section aria-label="CyberHunter proje bilgileri" className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 xl:gap-5">
+        <InfoFeatureCard
+          title="Proje Amacı"
+          accent="indigo"
+          icon={<Icon path="M12 3l7 3v5c0 4.5-2.8 8.2-7 10-4.2-1.8-7-5.5-7-10V6l7-3z" />}
+        >
+          <p>
+            IoT cihazlarından gelen güvenlik olaylarını toplamak, ESP32 üzerinde değerlendirmek ve
+            doğrulanmış sonucu güvenli biçimde kalıcı veritabanına kaydetmek.
+          </p>
+          <ul className="mt-4 flex flex-wrap gap-2">
+            {benefits.map(benefit => (
+              <li key={benefit} className="rounded-lg border border-indigo-500/15 bg-indigo-500/5 px-2.5 py-1 text-xs font-medium text-indigo-200">
+                {benefit}
+              </li>
+            ))}
+          </ul>
+        </InfoFeatureCard>
+
+        <InfoFeatureCard
+          title="Bileşenler"
+          accent="rose"
+          icon={<Icon path="M7 7h10v10H7zM9 3v4m6-4v4M9 17v4m6-4v4M3 9h4m10 0h4M3 15h4m10 0h4" />}
+        >
+          <ul className="space-y-2.5">
+            {components.map(([name, role]) => (
+              <li key={name} className="flex gap-2">
+                <span className="font-semibold text-slate-200">{name}</span>
+                <span aria-hidden="true" className="text-slate-600">—</span>
+                <span>{role}</span>
+              </li>
+            ))}
+          </ul>
+        </InfoFeatureCard>
+
+        <InfoFeatureCard
+          title="Veri Bütünlüğü"
+          accent="emerald"
+          icon={<Icon path="M5 12l4 4L19 6M4 4h16v16H4z" />}
+        >
+          <ul className="space-y-2.5">
+            {integrityItems.map(item => (
+              <li key={item} className="flex gap-2">
+                <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </InfoFeatureCard>
+
+        <SystemLiveSummary
+          guvenlikOlaylari={guvenlikOlaylari}
+          sonDegerlendirmeOlayi={sonDegerlendirmeOlayi}
+          guvenlikOlaylariYukleniyor={guvenlikOlaylariYukleniyor}
+          guvenlikOlaylariHatasi={guvenlikOlaylariHatasi}
+        />
       </section>
 
-      <section>
-        <h3 className="text-xl font-bold text-white">Sistemin öne çıkan savunma katmanları</h3>
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {yetenekler.map(ad => (
-            <div key={ad} className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-lg">
-              <h4 className="font-bold text-white">{ad}</h4>
-              <p className="mt-2 text-sm leading-6 text-slate-500">Sistem güvenliği için bütünleşik savunma yaklaşımı sunar.</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <footer className="rounded-2xl border border-slate-800 bg-slate-900/60 px-5 py-4 text-center text-sm text-slate-400">
+        Bu sayfa CyberHunter projesinin tanıtımı ve uçtan uca mimari özeti için hazırlanmıştır.
+      </footer>
     </div>
   );
 }

@@ -1,3 +1,261 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes status-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgb(52 211 153 / 0);
+  }
+  50% {
+    opacity: 0.75;
+    box-shadow: 0 0 0 4px rgb(52 211 153 / 0.08);
+  }
+}
+
+.animate-fade-in {
+  animation: page-enter 190ms ease-out both;
+}
+
+.status-pulse {
+  animation: status-pulse 2.2s ease-in-out infinite;
+}
+
+.architecture-flow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.architecture-node {
+  display: flex;
+  min-height: 92px;
+  min-width: 0;
+  flex: 1 1 0%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgb(51 65 85 / 0.8);
+  border-radius: 14px;
+  background: rgb(15 23 42 / 0.75);
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.architecture-node-icon {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgb(30 41 59 / 0.85);
+}
+
+.architecture-node span {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: rgb(203 213 225);
+}
+
+.architecture-connector {
+  position: relative;
+  width: 18px;
+  height: 2px;
+  flex: 0 0 18px;
+  background: rgb(71 85 105 / 0.8);
+}
+
+.architecture-arrow {
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translateY(-50%);
+  color: rgb(100 116 139);
+}
+
+.architecture-data-point {
+  position: absolute;
+  z-index: 1;
+  top: -2px;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgb(129 140 248);
+  box-shadow: 0 0 8px rgb(129 140 248 / 0.35);
+  animation: architecture-data-flow 2.8s ease-in-out infinite;
+}
+
+@keyframes architecture-data-flow {
+  from {
+    transform: translateX(0);
+    opacity: 0.35;
+  }
+  45%, 55% {
+    opacity: 0.9;
+  }
+  to {
+    transform: translateX(12px);
+    opacity: 0.35;
+  }
+}
+
+@media (max-width: 767px) {
+  .architecture-flow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .architecture-node {
+    min-height: 58px;
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 10px 12px;
+    text-align: left;
+  }
+
+  .architecture-node span {
+    font-size: 12px;
+  }
+
+  .architecture-connector {
+    width: 2px;
+    height: 18px;
+    flex-basis: 18px;
+    align-self: center;
+  }
+
+  .architecture-arrow {
+    right: 50%;
+    top: auto;
+    bottom: -5px;
+    transform: translateX(50%) rotate(90deg);
+  }
+
+  .architecture-data-point {
+    top: 0;
+    left: -2px;
+    animation-name: architecture-data-flow-vertical;
+  }
+}
+
+@keyframes architecture-data-flow-vertical {
+  from {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  45%, 55% {
+    opacity: 0.9;
+  }
+  to {
+    transform: translateY(12px);
+    opacity: 0.35;
+  }
+}
+
+.risk-gauge {
+  position: relative;
+  display: grid;
+  width: 118px;
+  height: 118px;
+  place-items: center;
+  border-radius: 9999px;
+  background: conic-gradient(var(--risk-color) var(--risk-value), rgb(30 41 59) 0);
+}
+
+.risk-gauge::before {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border: 1px solid rgb(51 65 85);
+  border-radius: inherit;
+  background: rgb(15 23 42);
+}
+
+.risk-gauge-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.risk-gauge-content strong {
+  font-size: 30px;
+  line-height: 1;
+  color: white;
+}
+
+.risk-gauge-content span {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgb(148 163 184);
+}
+
+.event-detail-panel {
+  animation: detail-panel-enter 220ms ease-out both;
+}
+
+@keyframes detail-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.event-new-highlight {
+  animation: event-highlight 850ms ease-out both;
+}
+
+@keyframes event-highlight {
+  from {
+    background-color: rgb(99 102 241 / 0.2);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+button,
+a,
+[tabindex]:not([tabindex="-1"]) {
+  outline-offset: 3px;
+}
+
+button:focus-visible,
+a:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: 2px solid rgb(129 140 248);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

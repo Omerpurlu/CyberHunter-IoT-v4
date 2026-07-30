@@ -1,4 +1,19 @@
-from sqlalchemy import BigInteger, Column, Integer, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    SmallInteger,
+    String,
+    Text,
+    text,
+)
+from sqlalchemy.dialects.postgresql import INET
 
 from database import Base
 
@@ -29,3 +44,143 @@ class DeviceCommand(Base):
     message = Column(Text, nullable=True)
     encryption_version = Column(Integer, nullable=False, server_default="0")
     md5_checksum = Column(String(32), nullable=True)
+
+
+class SecurityEvent(Base):
+    __tablename__ = "security_events"
+    __table_args__ = (
+        CheckConstraint(
+            "length(btrim(event_id)) > 0",
+            name="ck_security_events_event_id_nonempty",
+        ),
+        CheckConstraint(
+            "destination_port BETWEEN 1 AND 65535",
+            name="ck_security_events_destination_port",
+        ),
+        CheckConstraint(
+            "length(btrim(protocol)) > 0",
+            name="ck_security_events_protocol_nonempty",
+        ),
+        CheckConstraint(
+            "protocol = lower(protocol)",
+            name="ck_security_events_protocol_lowercase",
+        ),
+        CheckConstraint(
+            "length(btrim(event_type)) > 0",
+            name="ck_security_events_event_type_nonempty",
+        ),
+        CheckConstraint(
+            "input_risk_score BETWEEN 0 AND 100",
+            name="ck_security_events_input_risk_score",
+        ),
+        CheckConstraint(
+            "octet_length(payload_hash) = 32",
+            name="ck_security_events_payload_hash",
+        ),
+        CheckConstraint(
+            "hash_version > 0",
+            name="ck_security_events_hash_version",
+        ),
+        Index(
+            "ix_security_events_event_timestamp",
+            text("event_timestamp DESC"),
+        ),
+        Index(
+            "ix_security_events_source_ip_timestamp",
+            "source_ip",
+            text("event_timestamp DESC"),
+        ),
+        Index(
+            "ix_security_events_protocol_timestamp",
+            "protocol",
+            text("event_timestamp DESC"),
+        ),
+        Index(
+            "ix_security_events_event_type_timestamp",
+            "event_type",
+            text("event_timestamp DESC"),
+        ),
+    )
+
+    event_id = Column(String(128), primary_key=True)
+    event_timestamp = Column(DateTime(timezone=True), nullable=False)
+    source_ip = Column(INET, nullable=False)
+    destination_port = Column(Integer, nullable=False)
+    protocol = Column(String(32), nullable=False)
+    event_type = Column(String(64), nullable=False)
+    command = Column(Text, nullable=True)
+    tactic = Column(String(64), nullable=True)
+    input_risk_score = Column(SmallInteger, nullable=False)
+    payload_hash = Column(LargeBinary, nullable=False)
+    hash_version = Column(
+        SmallInteger,
+        nullable=False,
+        server_default=text("1"),
+    )
+    received_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+
+class Esp32Assessment(Base):
+    __tablename__ = "esp32_assessments"
+    __table_args__ = (
+        CheckConstraint(
+            "length(btrim(device_id)) > 0",
+            name="ck_esp32_assessments_device_id_nonempty",
+        ),
+        CheckConstraint(
+            "esp32_risk_score BETWEEN 0 AND 100",
+            name="ck_esp32_assessments_risk_score",
+        ),
+        CheckConstraint(
+            "length(btrim(esp32_decision)) > 0",
+            name="ck_esp32_assessments_decision_nonempty",
+        ),
+        CheckConstraint(
+            "esp32_decision = lower(esp32_decision)",
+            name="ck_esp32_assessments_decision_lowercase",
+        ),
+        CheckConstraint(
+            "octet_length(payload_hash) = 32",
+            name="ck_esp32_assessments_payload_hash",
+        ),
+        CheckConstraint(
+            "hash_version > 0",
+            name="ck_esp32_assessments_hash_version",
+        ),
+        Index("ix_esp32_assessments_device_id", "device_id"),
+        Index("ix_esp32_assessments_decision", "esp32_decision"),
+        Index(
+            "ix_esp32_assessments_risk_score",
+            text("esp32_risk_score DESC"),
+        ),
+    )
+
+    event_id = Column(
+        String(128),
+        ForeignKey(
+            "security_events.event_id",
+            name="fk_esp32_assessments_event",
+            ondelete="CASCADE",
+        ),
+        primary_key=True,
+    )
+    device_id = Column(String(128), nullable=False)
+    esp32_risk_score = Column(SmallInteger, nullable=False)
+    esp32_decision = Column(String(32), nullable=False)
+    esp32_processed = Column(Boolean, nullable=False)
+    assessed_at = Column(DateTime(timezone=True), nullable=True)
+    payload_hash = Column(LargeBinary, nullable=False)
+    hash_version = Column(
+        SmallInteger,
+        nullable=False,
+        server_default=text("1"),
+    )
+    received_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )

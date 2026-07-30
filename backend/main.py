@@ -15,9 +15,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from crypto_utils import LogDecryptionError, decrypt_text, encrypt_text
-from database import SessionLocal, engine
+from database import engine
+from dependencies import get_db
 from hash_utils import device_command_payload, led_log_payload, md5_checksum
 from models import DeviceCommand, LedLog
+from routers.security_events import router as security_events_router
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -35,6 +37,7 @@ def require_env(name: str) -> str:
 DEVICE_SECRET = require_env("DEVICE_SECRET")
 
 app = FastAPI(title="CyberHunter IoT Backend")
+app.include_router(security_events_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
@@ -88,14 +91,6 @@ def readable_log_message(record, legacy_message) -> str:
             )
             return UNREADABLE_ENCRYPTED_LOG
     return record.message if record.message is not None else legacy_message(record)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 class ConnectionManager:

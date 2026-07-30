@@ -12,9 +12,9 @@ const char *WIFI = "YYU-Muhendislik-Wifi", *ID = "esp32-led-01";
 const char *SECRET = DEVICE_SECRET;
 
 // Backend bilgisayarının yerel ağ adresi ve portu.
-const char *STATE = "http://10.104.1.89:8000/api/iot/led-state";
-const char *COMMAND = "http://10.104.1.89:8000/api/iot/commands/pending/esp32-led-01";
-const char *COMPLETE = "http://10.104.1.89:8000/api/iot/commands/complete/";
+const char *STATE = "http://10.143.203.195:5000/api/iot/led-state";
+const char *COMMAND = "http://10.143.203.195:5000/api/iot/commands/pending/esp32-led-01";
+const char *COMPLETE = "http://10.143.203.195:5000/api/iot/commands/complete/";
 
 volatile bool red = true, dirty = true;
 volatile uint32_t nextTry = 0;
