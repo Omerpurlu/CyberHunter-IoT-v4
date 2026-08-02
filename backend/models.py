@@ -14,6 +14,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import INET
+from sqlalchemy.dialects.postgresql import JSONB
 
 from database import Base
 
@@ -180,6 +181,49 @@ class Esp32Assessment(Base):
         server_default=text("1"),
     )
     received_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+
+class SystemComponentStatus(Base):
+    __tablename__ = "system_component_status"
+    __table_args__ = (
+        CheckConstraint(
+            "component_type IN ('raspberry_pi', 'esp32')",
+            name="ck_system_component_status_component_type",
+        ),
+        CheckConstraint(
+            "reported_status IN ('healthy', 'degraded', 'error', 'starting')",
+            name="ck_system_component_status_reported_status",
+        ),
+        CheckConstraint(
+            "sequence >= 0",
+            name="ck_system_component_status_sequence_nonnegative",
+        ),
+        Index("ix_system_component_status_last_seen", text("last_seen DESC")),
+    )
+
+    component_type = Column(String(32), primary_key=True)
+    component_id = Column(String(128), primary_key=True)
+    reported_status = Column(String(32), nullable=False)
+    sequence = Column(BigInteger, nullable=False)
+    last_seen = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    reported_by = Column(String(128), nullable=True)
+    software_version = Column(String(64), nullable=True)
+    device_timestamp = Column(DateTime(timezone=True), nullable=True)
+    metadata_json = Column("metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    updated_at = Column(
         DateTime(timezone=True),
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),

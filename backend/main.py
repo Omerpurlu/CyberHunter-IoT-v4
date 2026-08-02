@@ -20,6 +20,8 @@ from dependencies import get_db
 from hash_utils import device_command_payload, led_log_payload, md5_checksum
 from models import DeviceCommand, LedLog
 from routers.security_events import router as security_events_router
+from routers.health import router as health_router
+from routers.system import heartbeat_settings, router as system_router
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -38,6 +40,8 @@ DEVICE_SECRET = require_env("DEVICE_SECRET")
 
 app = FastAPI(title="CyberHunter IoT Backend")
 app.include_router(security_events_router)
+app.include_router(system_router)
+app.include_router(health_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
@@ -49,6 +53,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 def verify_postgresql_connection() -> None:
+    heartbeat_settings()
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1")).scalar_one()
