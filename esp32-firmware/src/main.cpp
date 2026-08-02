@@ -6,9 +6,10 @@
 #include <mbedtls/md.h>
 #include <sys/time.h>
 #include "secrets.h"
+#include "heartbeat_client.h"
 
 constexpr int BUTTON = 18, BLUE = 4, RED = 5, GREEN = 19;
-const char *WIFI = "YYU-Muhendislik-Wifi", *ID = "esp32-led-01";
+const char *WIFI = WIFI_SSID, *ID = DEVICE_ID;
 const char *SECRET = DEVICE_SECRET;
 
 // Backend bilgisayarının yerel ağ adresi ve portu.
@@ -219,6 +220,7 @@ void setup()
     WiFi.setAutoReconnect(true);
     WiFi.begin(WIFI);
     configTime(0, 0, "pool.ntp.org", "time.google.com");
+    heartbeatClientBegin();
     xTaskCreatePinnedToCore(network, "Network", 8192, nullptr, 1, nullptr, 0);
 }
 
