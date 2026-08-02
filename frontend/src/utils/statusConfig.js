@@ -14,6 +14,11 @@ export const statusConfig = {
     dot: 'bg-amber-400',
     badge: 'border-amber-500/25 bg-amber-500/10 text-amber-300',
   },
+  delayed: {
+    label: 'Gecikmeli',
+    dot: 'bg-orange-400',
+    badge: 'border-orange-500/25 bg-orange-500/10 text-orange-300',
+  },
   warning: {
     label: 'Uyarı',
     dot: 'bg-amber-400',

@@ -3,6 +3,7 @@ import InfoFeatureCard from '../components/InfoFeatureCard';
 import PageHeader from '../components/PageHeader';
 import SystemLiveSummary from '../components/SystemLiveSummary';
 import { tarihSaatFormatla } from '../utils/dateFormat';
+import { componentByType, computedStatusLabel } from '../utils/systemStatus';
 
 function Icon({ path }) {
   return (
@@ -34,7 +35,20 @@ export default function SystemInfoPage({
   guvenlikOlaylariHatasi,
   sonDegerlendirmeOlayi,
   sonAktiviteZamani,
+  health,
+  systemStatus,
+  healthError,
+  systemStatusError,
 }) {
+  const raspberryPi = componentByType(systemStatus, 'raspberry_pi');
+  const esp32 = componentByType(systemStatus, 'esp32');
+  const liveItems = [
+    ['FastAPI', health?.fastapi?.status === 'healthy' ? 'Sağlıklı' : health ? 'Kısıtlı' : 'Durum alınamadı'],
+    ['PostgreSQL', health?.postgresql?.status === 'healthy' ? 'Sağlıklı' : health?.postgresql?.status === 'unavailable' ? 'Kullanılamıyor' : 'Durum alınamadı'],
+    ['Sorgu süresi', Number.isFinite(health?.postgresql?.query_ms) ? `${health.postgresql.query_ms} ms` : 'Veri yok'],
+    ['Raspberry Pi', computedStatusLabel(raspberryPi?.computed_status || 'waiting')],
+    ['ESP32', computedStatusLabel(esp32?.computed_status || 'waiting')],
+  ];
   return (
     <div className="flex w-full flex-col gap-6 pb-4 animate-fade-in lg:gap-7">
       <PageHeader
@@ -50,6 +64,27 @@ export default function SystemInfoPage({
           </div>
         )}
       />
+
+      <section aria-label="Canlı sistem özeti" className="rounded-3xl border border-slate-800 bg-slate-900/65 p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300">Canlı bağlantı özeti</p>
+            <h2 className="mt-1 text-lg font-bold text-white">Health ve heartbeat durumu</h2>
+          </div>
+          <p className="text-xs text-slate-400">Son health kontrolü: {tarihSaatFormatla(health?.generated_at)}</p>
+        </div>
+        <dl className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {liveItems.map(([label, value]) => (
+            <div key={label} className="rounded-xl border border-slate-800 bg-slate-950/50 px-4 py-3">
+              <dt className="text-xs font-medium text-slate-400">{label}</dt>
+              <dd className="mt-1 text-sm font-semibold text-slate-200">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        {(healthError || systemStatusError) && (
+          <p className="mt-4 text-xs text-amber-300">Bazı canlı durum bilgileri geçici olarak alınamadı; son başarılı değerler korunuyor.</p>
+        )}
+      </section>
 
       <section className="relative overflow-hidden rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/25 p-5 shadow-xl shadow-black/10 sm:p-6 lg:p-7">
         <div aria-hidden="true" className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />

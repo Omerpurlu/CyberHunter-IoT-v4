@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import SystemInfoPage from './pages/SystemInfoPage';
-import HardwareControlPage from './pages/HardwareControlPage';
-import SystemLogsPage from './pages/SystemLogsPage';
+import Esp32AssessmentPage from './pages/Esp32AssessmentPage';
+import SecurityEventsPage from './pages/SecurityEventsPage';
 import SystemHealthPage from './pages/SystemHealthPage';
 import useCyberHunterData from './hooks/useCyberHunterData';
 
@@ -11,9 +11,9 @@ function App() {
   const cyberHunterData = useCyberHunterData();
   const sayfaGoster = () => {
     switch (aktifSayfa) {
-      case 'kontrol': return <HardwareControlPage {...cyberHunterData} />;
-      case 'loglar': return <SystemLogsPage {...cyberHunterData} />;
-      case 'saglik': return <SystemHealthPage sistemSagligi={cyberHunterData.sistemSagligi} sonYenilemeZamani={cyberHunterData.sonYenilemeZamani} />;
+      case 'kontrol': return <Esp32AssessmentPage {...cyberHunterData} />;
+      case 'loglar': return <SecurityEventsPage {...cyberHunterData} />;
+      case 'saglik': return <SystemHealthPage {...cyberHunterData} />;
       case 'bilgi':
       default: return <SystemInfoPage {...cyberHunterData} />;
     }

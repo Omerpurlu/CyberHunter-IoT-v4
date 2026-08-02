@@ -31,7 +31,7 @@ const stateIcon = (
   </svg>
 );
 
-export default function HardwareControlPage({
+export default function Esp32AssessmentPage({
   guvenlikOlaylari = [],
   guvenlikOlaylariYukleniyor,
   guvenlikOlaylariHatasi,

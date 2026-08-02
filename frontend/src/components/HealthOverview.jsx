@@ -8,8 +8,9 @@ const flow = [
   { label: 'Dashboard', color: 'text-purple-300', path: 'M4 5h16v12H4zM9 21h6' },
 ];
 
-export default function HealthOverview({ apiAccessible, databaseAccessible }) {
+export default function HealthOverview({ apiAccessible, databaseAccessible, deviceStatuses = [] }) {
   const servicesAccessible = apiAccessible && databaseAccessible;
+  const devicesOnline = deviceStatuses.filter(status => status === 'online').length;
 
   return (
     <section className="overflow-hidden rounded-[18px] border border-indigo-500/20 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/20 shadow-lg shadow-black/10">
@@ -22,7 +23,7 @@ export default function HealthOverview({ apiAccessible, databaseAccessible }) {
           </div>
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-400">Genel Durum</p>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight text-white">Kısmen İzlenebilir</h2>
+            <h2 className="mt-1 text-2xl font-bold tracking-tight text-white">Canlı Sistem Durumu</h2>
             <ul className="mt-3 space-y-1.5 text-sm text-slate-300">
               <li className="flex gap-2">
                 <span aria-hidden="true" className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${servicesAccessible ? 'bg-emerald-400' : 'bg-red-400'}`} />
@@ -30,7 +31,7 @@ export default function HealthOverview({ apiAccessible, databaseAccessible }) {
               </li>
               <li className="flex gap-2">
                 <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
-                Raspberry Pi ve ESP32 için heartbeat bekleniyor
+                Raspberry Pi ve ESP32: {devicesOnline}/2 çevrimiçi
               </li>
             </ul>
           </div>
@@ -62,4 +63,3 @@ export default function HealthOverview({ apiAccessible, databaseAccessible }) {
     </section>
   );
 }
-

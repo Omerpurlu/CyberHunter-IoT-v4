@@ -18,7 +18,7 @@ function uniqueValues(events, getter) {
   return [...new Set(events.map(getter).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), 'tr'));
 }
 
-export default function SystemLogsPage({
+export default function SecurityEventsPage({
   guvenlikOlaylari = [],
   guvenlikOlaylariYukleniyor = false,
   guvenlikOlaylariHatasi = null,

@@ -24,6 +24,7 @@ export default function HealthCard({
   className = '',
   icon,
   iconTone = 'blue',
+  details = [],
 }) {
   const formattedTime = tarihSaatFormatla(time);
   const displayedTime = formattedTime === 'Veri yok' && emptyTimeText ? emptyTimeText : formattedTime;
@@ -52,6 +53,12 @@ export default function HealthCard({
           <dt className="shrink-0 text-slate-400">Kaynak</dt>
           <dd className="text-right font-medium text-slate-300">{source}</dd>
         </div>
+        {details.map(([label, value]) => (
+          <div key={label} className="flex items-start justify-between gap-4">
+            <dt className="shrink-0 text-slate-400">{label}</dt>
+            <dd className="break-all text-right font-medium text-slate-300">{value ?? 'Veri yok'}</dd>
+          </div>
+        ))}
       </dl>
 
       {description && (
