@@ -22,11 +22,11 @@ const components = [
   ['Dashboard', 'İzleme ve inceleme'],
 ];
 const integrityItems = [
-  'event_id ile benzersiz kimliklendirme',
-  'security_events ve esp32_assessments ilişkisi',
-  'Hash ile eğitimsel kayıt karşılaştırması',
-  'Duplicate ve conflict kontrolü',
-  'PostgreSQL constraint ve index yapısı',
+  'Her güvenlik olayı benzersiz olarak kaydedilir',
+  'Aynı veri tekrar gelirse ikinci kez oluşturulmaz',
+  'Tutarsız veya hatalı kayıtlar sisteme alınmaz',
+  'Olay ve ESP32 değerlendirmesi birlikte saklanır',
+  'Kayıtlar PostgreSQL üzerinde güvenli biçimde korunur',
 ];
 
 export default function SystemInfoPage({
@@ -161,7 +161,7 @@ export default function SystemInfoPage({
         </InfoFeatureCard>
 
         <InfoFeatureCard
-          title="Veri Bütünlüğü"
+          title="Veriler Nasıl Korunuyor?"
           accent="emerald"
           icon={<Icon path="M5 12l4 4L19 6M4 4h16v16H4z" />}
         >
@@ -173,6 +173,9 @@ export default function SystemInfoPage({
               </li>
             ))}
           </ul>
+          <p className="mt-4 text-xs text-slate-500">
+            Tekrarlanan veya çelişkili veriler otomatik olarak kontrol edilir.
+          </p>
         </InfoFeatureCard>
 
         <SystemLiveSummary
