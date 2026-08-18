@@ -8,6 +8,9 @@ const api = axios.create({
 export const getSecurityEvents = () => api.get('/api/security-events', {
   params: { limit: 50, offset: 0 },
 });
+export const getResponseActions = () => api.get('/api/response-actions', {
+  params: { limit: 50, offset: 0 },
+});
 export const getHealth = () => api.get('/api/health');
 export const getSystemStatus = () => api.get('/api/system/status');
 

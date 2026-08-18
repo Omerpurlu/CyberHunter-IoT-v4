@@ -21,6 +21,9 @@ from schemas.security_event import SecurityEventInput  # noqa: E402
 from services.security_event_service import (  # noqa: E402
     SecurityEventService,
     canonical_sha256,
+    normalize_event_type,
+    normalize_protocol,
+    normalize_tactic,
 )
 
 
@@ -64,6 +67,44 @@ def input_payload() -> SecurityEventInput:
 
 
 class SecurityEventServiceTests(unittest.TestCase):
+    def test_protocol_normalization_uses_controlled_ssh_mapping(self):
+        for value in ("SSH", " ssh ", "ssh"):
+            with self.subTest(value=value):
+                self.assertEqual(normalize_protocol(value), "ssh")
+
+    def test_ai_event_type_normalization(self):
+        cases = {
+            "Credential_Attack": "credential_attack",
+            "Web_Attack": "web_attack",
+            "DoS_DDoS": "dos_ddos",
+            "Malware_Botnet": "malware_botnet",
+            "Spoofing_MITM": "spoofing_mitm",
+            "Normal_Benign": "normal_benign",
+            "Unknown": "unknown",
+        }
+        for value, expected in cases.items():
+            with self.subTest(value=value):
+                self.assertEqual(normalize_event_type(value), expected)
+
+    def test_tactic_normalization(self):
+        cases = {
+            "Credential Access": "credential_access",
+            "Initial Access": "initial_access",
+            "Command and Control": "command_and_control",
+            "Reconnaissance": "reconnaissance",
+            "Impact": "impact",
+            "Benign": "benign",
+            "Unknown": "unknown",
+        }
+        for value, expected in cases.items():
+            with self.subTest(value=value):
+                self.assertEqual(normalize_tactic(value), expected)
+
+    def test_unrecognized_values_keep_legacy_behavior(self):
+        self.assertEqual(normalize_protocol(" HTTPS "), "https")
+        self.assertEqual(normalize_event_type(" Custom_Event "), "Custom_Event")
+        self.assertEqual(normalize_tactic(" Custom Tactic "), " Custom Tactic ")
+
     def test_canonical_hash_is_order_independent(self):
         first = canonical_sha256({"b": 2, "a": 1})
         second = canonical_sha256({"a": 1, "b": 2})
@@ -91,6 +132,34 @@ class SecurityEventServiceTests(unittest.TestCase):
         self.assertNotEqual(
             repository.event_values["payload_hash"],
             repository.assessment_values["payload_hash"],
+        )
+
+    def test_normalized_values_are_used_in_event_hash(self):
+        first_repository = StubRepository(RepositoryResult("created"))
+        first = input_payload()
+        first.event_type = "Credential_Attack"
+        first.tactic = "Credential Access"
+        SecurityEventService(first_repository).persist(first)
+
+        second_repository = StubRepository(RepositoryResult("created"))
+        second = input_payload()
+        second.protocol = "ssh"
+        second.event_type = "credential_attack"
+        second.tactic = "credential_access"
+        SecurityEventService(second_repository).persist(second)
+
+        self.assertEqual(first_repository.event_values["protocol"], "ssh")
+        self.assertEqual(
+            first_repository.event_values["event_type"],
+            "credential_attack",
+        )
+        self.assertEqual(
+            first_repository.event_values["tactic"],
+            "credential_access",
+        )
+        self.assertEqual(
+            first_repository.event_values["payload_hash"],
+            second_repository.event_values["payload_hash"],
         )
 
     def test_duplicate_result(self):

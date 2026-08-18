@@ -21,6 +21,7 @@ from hash_utils import device_command_payload, led_log_payload, md5_checksum
 from models import DeviceCommand, LedLog
 from routers.security_events import router as security_events_router
 from routers.health import router as health_router
+from routers.response_actions import router as response_actions_router
 from routers.system import heartbeat_settings, router as system_router
 
 logger = logging.getLogger("uvicorn.error")
@@ -42,6 +43,7 @@ app = FastAPI(title="CyberHunter IoT Backend")
 app.include_router(security_events_router)
 app.include_router(system_router)
 app.include_router(health_router)
+app.include_router(response_actions_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),

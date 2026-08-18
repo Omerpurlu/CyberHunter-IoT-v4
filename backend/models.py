@@ -11,8 +11,11 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    UniqueConstraint,
+    Uuid,
     text,
 )
+from uuid import uuid4
 from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -185,6 +188,82 @@ class Esp32Assessment(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
+
+
+class ResponseAction(Base):
+    __tablename__ = "response_actions"
+    __table_args__ = (
+        CheckConstraint(
+            "action IN ('log_only', 'alert', 'request_approval', 'isolate_device')",
+            name="ck_response_actions_action",
+        ),
+        CheckConstraint(
+            "severity IN ('normal', 'warning', 'critical')",
+            name="ck_response_actions_severity",
+        ),
+        CheckConstraint(
+            "status IN ('recorded', 'awaiting_approval', 'pending', 'dispatched', "
+            "'executed', 'failed', 'expired', 'cancelled')",
+            name="ck_response_actions_status",
+        ),
+        CheckConstraint(
+            "risk_score BETWEEN 0 AND 100",
+            name="ck_response_actions_risk_score",
+        ),
+        CheckConstraint(
+            "policy_version > 0",
+            name="ck_response_actions_policy_version",
+        ),
+        CheckConstraint(
+            "attempt_count >= 0",
+            name="ck_response_actions_attempt_count",
+        ),
+        CheckConstraint(
+            "expires_at > created_at",
+            name="ck_response_actions_expiry",
+        ),
+        UniqueConstraint(
+            "event_id",
+            "device_id",
+            "action",
+            "policy_version",
+            name="uq_response_actions_decision",
+        ),
+        Index(
+            "ix_response_actions_pending_claim",
+            "device_id",
+            "status",
+            "expires_at",
+            "created_at",
+        ),
+    )
+
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    event_id = Column(
+        String(128),
+        ForeignKey(
+            "security_events.event_id",
+            name="fk_response_actions_event",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+    device_id = Column(String(128), nullable=False)
+    action = Column(String(32), nullable=False)
+    severity = Column(String(16), nullable=False)
+    status = Column(String(32), nullable=False)
+    risk_score = Column(SmallInteger, nullable=False)
+    policy_version = Column(Integer, nullable=False)
+    decision_reason = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    dispatched_at = Column(DateTime(timezone=True), nullable=True)
+    executed_at = Column(DateTime(timezone=True), nullable=True)
+    ack_received_at = Column(DateTime(timezone=True), nullable=True)
+    ack_message = Column(Text, nullable=True)
+    relay_state = Column(String(64), nullable=True)
+    attempt_count = Column(Integer, nullable=False, server_default=text("0"))
+    last_error = Column(Text, nullable=True)
 
 
 class SystemComponentStatus(Base):

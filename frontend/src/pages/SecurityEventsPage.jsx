@@ -22,6 +22,9 @@ export default function SecurityEventsPage({
   guvenlikOlaylari = [],
   guvenlikOlaylariYukleniyor = false,
   guvenlikOlaylariHatasi = null,
+  responseActions = [],
+  responseActionsLoading = false,
+  responseActionsError = null,
 }) {
   const [filters, setFilters] = useState(initialFilters);
   const [selectedId, setSelectedId] = useState(null);
@@ -89,6 +92,16 @@ export default function SecurityEventsPage({
   const selectedEvent = selectedId
     ? guvenlikOlaylari.find(event => event.event_id === selectedId) || null
     : null;
+  const selectedActions = useMemo(() => {
+    if (!selectedId) return [];
+    return responseActions
+      .filter(action => action?.event_id === selectedId)
+      .sort((first, second) => {
+        const firstTime = Date.parse(first.created_at) || 0;
+        const secondTime = Date.parse(second.created_at) || 0;
+        return secondTime - firstTime;
+      });
+  }, [responseActions, selectedId]);
 
   const selectEvent = event => {
     returnFocusRef.current = document.activeElement;
@@ -156,7 +169,15 @@ export default function SecurityEventsPage({
         )}
       />
       {content}
-      <EventDetailPanel event={selectedEvent} onClose={closePanel} returnFocus={returnFocus} />
+      <EventDetailPanel
+        event={selectedEvent}
+        responseAction={selectedActions[0] ?? null}
+        responseActionCount={selectedActions.length}
+        responseActionsLoading={responseActionsLoading}
+        responseActionsError={responseActionsError}
+        onClose={closePanel}
+        returnFocus={returnFocus}
+      />
     </div>
   );
 }

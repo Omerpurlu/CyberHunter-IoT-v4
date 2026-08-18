@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getHealth, getSecurityEvents, getSystemStatus } from '../services/api';
+import { getHealth, getResponseActions, getSecurityEvents, getSystemStatus } from '../services/api';
 
 const guvenliHataMesaji = (hata, varsayilan) => {
   const durum = hata?.response?.status;
@@ -10,6 +10,9 @@ export default function useCyberHunterData() {
   const [guvenlikOlaylari, setGuvenlikOlaylari] = useState([]);
   const [guvenlikOlaylariYukleniyor, setGuvenlikOlaylariYukleniyor] = useState(true);
   const [guvenlikOlaylariHatasi, setGuvenlikOlaylariHatasi] = useState(null);
+  const [responseActions, setResponseActions] = useState([]);
+  const [responseActionsLoading, setResponseActionsLoading] = useState(true);
+  const [responseActionsError, setResponseActionsError] = useState(null);
   const [health, setHealth] = useState(null);
   const [systemStatus, setSystemStatus] = useState(null);
   const [healthLoading, setHealthLoading] = useState(true);
@@ -25,8 +28,9 @@ export default function useCyberHunterData() {
     pollingRef.current = true;
 
     try {
-      const [eventsResult, healthResult, statusResult] = await Promise.allSettled([
+      const [eventsResult, actionsResult, healthResult, statusResult] = await Promise.allSettled([
         getSecurityEvents(),
+        getResponseActions(),
         getHealth(),
         getSystemStatus(),
       ]);
@@ -40,6 +44,17 @@ export default function useCyberHunterData() {
       } else {
         setGuvenlikOlaylariHatasi(
           guvenliHataMesaji(eventsResult.reason, 'Güvenlik olayları alınamadı')
+        );
+      }
+
+      if (actionsResult.status === 'fulfilled') {
+        setResponseActions(
+          Array.isArray(actionsResult.value.data?.items) ? actionsResult.value.data.items : []
+        );
+        setResponseActionsError(null);
+      } else {
+        setResponseActionsError(
+          guvenliHataMesaji(actionsResult.reason, 'Müdahale kayıtları alınamadı')
         );
       }
 
@@ -59,12 +74,13 @@ export default function useCyberHunterData() {
         );
       }
 
-      if ([eventsResult, healthResult, statusResult].some(result => result.status === 'fulfilled')) {
+      if ([eventsResult, actionsResult, healthResult, statusResult].some(result => result.status === 'fulfilled')) {
         setSonYenilemeZamani(Date.now());
       }
     } finally {
       if (mountedRef.current) {
         setGuvenlikOlaylariYukleniyor(false);
+        setResponseActionsLoading(false);
         setHealthLoading(false);
         setSystemStatusLoading(false);
       }
@@ -99,6 +115,9 @@ export default function useCyberHunterData() {
     guvenlikOlaylari,
     guvenlikOlaylariYukleniyor,
     guvenlikOlaylariHatasi,
+    responseActions,
+    responseActionsLoading,
+    responseActionsError,
     sonDegerlendirmeOlayi,
     sonAktiviteZamani,
     health,

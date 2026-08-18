@@ -7,6 +7,7 @@
 #include <sys/time.h>
 #include "secrets.h"
 #include "heartbeat_client.h"
+#include "response_action_client.h"
 
 constexpr int BUTTON = 18, BLUE = 4, RED = 5, GREEN = 19;
 const char *WIFI = WIFI_SSID, *ID = DEVICE_ID;
@@ -196,6 +197,7 @@ void network(void *)
         {
             poll = millis();
             checkCommand();
+            responseActionClientPoll();
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -221,6 +223,7 @@ void setup()
     WiFi.begin(WIFI);
     configTime(0, 0, "pool.ntp.org", "time.google.com");
     heartbeatClientBegin();
+    responseActionClientBegin();
     xTaskCreatePinnedToCore(network, "Network", 8192, nullptr, 1, nullptr, 0);
 }
 
