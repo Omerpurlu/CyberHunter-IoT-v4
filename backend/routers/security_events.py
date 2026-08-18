@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from dependencies import get_db
 from repositories.security_event_repository import SecurityEventRepository
+from repositories.response_action_repository import ResponseActionRepository
 from schemas.security_event import (
     Esp32AssessmentRead,
     PersistenceResult,
@@ -19,6 +20,7 @@ from schemas.security_event import (
     SecurityEventRead,
 )
 from services.security_event_service import SecurityEventService
+from services.security_response_orchestrator import SecurityResponseOrchestrator
 
 
 logger = logging.getLogger(__name__)
@@ -197,6 +199,12 @@ def get_security_event_repository(
     return SecurityEventRepository(db)
 
 
+def get_security_response_orchestrator(
+    db: Session = Depends(get_db),
+) -> SecurityResponseOrchestrator:
+    return SecurityResponseOrchestrator(ResponseActionRepository(db))
+
+
 @router.get(
     "",
     response_model=SecurityEventListResponse,
@@ -311,6 +319,9 @@ def persistence_http_status(result: PersistenceResult) -> int:
 def create_security_event(
     payload: SecurityEventInput,
     service: SecurityEventService = Depends(get_security_event_service),
+    orchestrator: SecurityResponseOrchestrator = Depends(
+        get_security_response_orchestrator
+    ),
 ):
     # Do not expose this unauthenticated ingestion endpoint to the public
     # internet. Bridge authentication will be defined with the Bridge team.
@@ -331,6 +342,18 @@ def create_security_event(
             status="error",
             error_code="INTERNAL_PERSISTENCE_ERROR",
         )
+
+    if result.success and result.status == "created":
+        try:
+            orchestrator.process(payload)
+        except Exception as exc:
+            logger.error(
+                "Security response orchestration failed "
+                "event_id=%s error_code=POLICY_ORCHESTRATION_ERROR "
+                "exception_type=%s",
+                payload.event_id,
+                type(exc).__name__,
+            )
 
     return JSONResponse(
         status_code=persistence_http_status(result),

@@ -24,9 +24,12 @@ os.environ.setdefault("POSTGRES_PASSWORD", "unit_test")
 from dependencies import get_db  # noqa: E402
 from routers.security_events import (  # noqa: E402
     get_security_event_service,
+    get_security_response_orchestrator,
     router,
 )
 from schemas.security_event import PersistenceResult  # noqa: E402
+from repositories.security_event_repository import RepositoryResult  # noqa: E402
+from services.security_event_service import SecurityEventService  # noqa: E402
 
 
 VALID_PAYLOAD = {
@@ -59,6 +62,37 @@ class StubService:
 class RaisingService:
     def persist(self, payload):
         raise RuntimeError("sudo cat /etc/shadow")
+
+
+class NoopOrchestrator:
+    def __init__(self):
+        self.calls = 0
+
+    def process(self, payload):
+        self.calls += 1
+        return None
+
+
+class RaisingOrchestrator:
+    def process(self, payload):
+        raise RuntimeError("policy unavailable")
+
+
+class CanonicalMemoryRepository:
+    def __init__(self):
+        self.event_hash = None
+        self.assessment_hash = None
+
+    def persist(self, event_values, assessment_values):
+        if self.event_hash is None:
+            self.event_hash = event_values["payload_hash"]
+            self.assessment_hash = assessment_values["payload_hash"]
+            return RepositoryResult("created")
+        if self.event_hash != event_values["payload_hash"]:
+            return RepositoryResult("event_conflict")
+        if self.assessment_hash != assessment_values["payload_hash"]:
+            return RepositoryResult("assessment_conflict")
+        return RepositoryResult("duplicate")
 
 
 @dataclass(frozen=True)
@@ -143,6 +177,9 @@ class SecurityEventEndpointTests(unittest.TestCase):
     def setUp(self):
         self.app = FastAPI()
         self.app.include_router(router)
+        self.app.dependency_overrides[get_security_response_orchestrator] = (
+            lambda: NoopOrchestrator()
+        )
 
     def request_with(self, result: PersistenceResult):
         service = StubService(result)
@@ -155,6 +192,15 @@ class SecurityEventEndpointTests(unittest.TestCase):
             VALID_PAYLOAD,
         )
         return response, service
+
+    def request_payload(self, payload: dict, service=None):
+        selected_service = service or StubService(
+            result_for(success=True, status="created")
+        )
+        self.app.dependency_overrides[get_security_event_service] = (
+            lambda: selected_service
+        )
+        return asgi_post(self.app, "/api/security-events", payload)
 
     def test_created_returns_201(self):
         response, service = self.request_with(
@@ -178,6 +224,28 @@ class SecurityEventEndpointTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "duplicate")
         self.assertTrue(response.json()["duplicate"])
+
+    def test_duplicate_does_not_create_response_action(self):
+        orchestrator = NoopOrchestrator()
+        self.app.dependency_overrides[get_security_response_orchestrator] = (
+            lambda: orchestrator
+        )
+        response, _ = self.request_with(
+            result_for(success=True, status="duplicate", duplicate=True)
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(orchestrator.calls, 0)
+
+    def test_policy_failure_does_not_rollback_created_event_response(self):
+        self.app.dependency_overrides[get_security_response_orchestrator] = (
+            lambda: RaisingOrchestrator()
+        )
+        with self.assertLogs("routers.security_events", level="ERROR"):
+            response, _ = self.request_with(
+                result_for(success=True, status="created")
+            )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["status"], "created")
 
     def test_event_conflict_returns_409(self):
         response, _ = self.request_with(
@@ -320,6 +388,113 @@ class SecurityEventEndpointTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 422)
         self.assertEqual(service.calls, 0)
+
+    def test_missing_esp32_fields_returns_422(self):
+        payload = dict(VALID_PAYLOAD)
+        for field in (
+            "esp32_risk_score",
+            "esp32_decision",
+            "esp32_processed",
+            "device_id",
+        ):
+            payload.pop(field)
+
+        self.assertEqual(self.request_payload(payload).status_code, 422)
+
+    def test_raw_ai_json_returns_422(self):
+        raw_ai_payload = {
+            "event_id": "evt-20260803T190152Z-k4m8x2",
+            "timestamp": "2026-08-03T19:01:52Z",
+            "source_ip": "192.168.137.1",
+            "destination_port": 22,
+            "protocol": "SSH",
+            "event_type": "Credential_Attack",
+            "command": "whoami; uname -a; pwd; ls; exit",
+            "tactic": "Credential Access",
+            "risk_score": 55,
+        }
+
+        self.assertEqual(self.request_payload(raw_ai_payload).status_code, 422)
+
+    def test_bridge_payload_returns_201(self):
+        payload = dict(VALID_PAYLOAD)
+        payload.update(
+            event_id="evt-20260803T190152Z-k4m8x2",
+            destination_port=22,
+            protocol="ssh",
+            event_type="credential_attack",
+            tactic="credential_access",
+            input_risk_score=55,
+            esp32_risk_score=55,
+        )
+
+        self.assertEqual(self.request_payload(payload).status_code, 201)
+
+    def test_unknown_risk_15_and_port_22_are_accepted(self):
+        payload = dict(VALID_PAYLOAD)
+        payload.update(
+            destination_port=22,
+            event_type="Unknown",
+            tactic="Unknown",
+            input_risk_score=15,
+        )
+
+        self.assertEqual(self.request_payload(payload).status_code, 201)
+
+    def test_risk_boundaries_are_accepted(self):
+        for score in (0, 100):
+            with self.subTest(score=score):
+                payload = dict(VALID_PAYLOAD)
+                payload["input_risk_score"] = score
+                payload["esp32_risk_score"] = score
+                self.assertEqual(self.request_payload(payload).status_code, 201)
+
+    def test_canonical_spelling_variants_are_duplicate(self):
+        repository = CanonicalMemoryRepository()
+        service = SecurityEventService(repository)
+        first = dict(VALID_PAYLOAD)
+        first.update(
+            protocol="SSH",
+            event_type="Credential_Attack",
+            tactic="Credential Access",
+        )
+        second = dict(first)
+        second.update(
+            protocol="ssh",
+            event_type="credential_attack",
+            tactic="credential_access",
+        )
+
+        self.assertEqual(self.request_payload(first, service).status_code, 201)
+        response = self.request_payload(second, service)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "duplicate")
+
+    def test_real_event_content_difference_is_conflict(self):
+        repository = CanonicalMemoryRepository()
+        service = SecurityEventService(repository)
+        first = dict(VALID_PAYLOAD)
+        first["event_type"] = "Credential_Attack"
+        second = dict(first)
+        second["event_type"] = "Web_Attack"
+
+        self.assertEqual(self.request_payload(first, service).status_code, 201)
+        response = self.request_payload(second, service)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error_code"], "EVENT_ID_CONFLICT")
+
+    def test_real_tactic_difference_is_conflict(self):
+        repository = CanonicalMemoryRepository()
+        service = SecurityEventService(repository)
+        first = dict(VALID_PAYLOAD)
+        first["tactic"] = "Credential Access"
+        second = dict(first)
+        second["tactic"] = "Initial Access"
+
+        self.assertEqual(self.request_payload(first, service).status_code, 201)
+        response = self.request_payload(second, service)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error_code"], "EVENT_ID_CONFLICT")
 
     def test_endpoint_does_not_commit_or_rollback(self):
         session = MagicMock()

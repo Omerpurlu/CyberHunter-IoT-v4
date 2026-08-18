@@ -16,6 +16,33 @@ from schemas.security_event import PersistenceResult, SecurityEventInput
 HASH_VERSION = 1
 logger = logging.getLogger(__name__)
 
+PROTOCOL_NORMALIZATION = {
+    "ssh": "ssh",
+}
+
+EVENT_TYPE_NORMALIZATION = {
+    "credential_attack": "credential_attack",
+    "web_attack": "web_attack",
+    "dos_ddos": "dos_ddos",
+    "malware_botnet": "malware_botnet",
+    "spoofing_mitm": "spoofing_mitm",
+    "normal_benign": "normal_benign",
+    "unknown": "unknown",
+}
+
+TACTIC_NORMALIZATION = {
+    "credential access": "credential_access",
+    "credential_access": "credential_access",
+    "initial access": "initial_access",
+    "initial_access": "initial_access",
+    "command and control": "command_and_control",
+    "command_and_control": "command_and_control",
+    "reconnaissance": "reconnaissance",
+    "impact": "impact",
+    "benign": "benign",
+    "unknown": "unknown",
+}
+
 
 def _canonical_timestamp(value: datetime) -> str:
     if value.tzinfo is None:
@@ -32,6 +59,24 @@ def canonical_sha256(values: dict[str, Any]) -> bytes:
         ensure_ascii=False,
     ).encode("utf-8")
     return hashlib.sha256(canonical).digest()
+
+
+def normalize_protocol(value: str) -> str:
+    lookup_key = value.strip().casefold()
+    return PROTOCOL_NORMALIZATION.get(lookup_key, value.strip().lower())
+
+
+def normalize_event_type(value: str) -> str:
+    stripped = value.strip()
+    lookup_key = stripped.casefold()
+    return EVENT_TYPE_NORMALIZATION.get(lookup_key, stripped)
+
+
+def normalize_tactic(value: str | None) -> str | None:
+    if value is None:
+        return None
+    lookup_key = value.strip().casefold()
+    return TACTIC_NORMALIZATION.get(lookup_key, value)
 
 
 class SecurityEventService:
@@ -78,8 +123,9 @@ class SecurityEventService:
                     error_code="VALIDATION_ERROR",
                 )
 
-        protocol = payload.protocol.strip().lower()
-        event_type = payload.event_type.strip()
+        protocol = normalize_protocol(payload.protocol)
+        event_type = normalize_event_type(payload.event_type)
+        tactic = normalize_tactic(payload.tactic)
         decision = payload.esp32_decision.strip().lower()
         event_id = payload.event_id.strip()
         device_id = payload.device_id.strip()
@@ -93,7 +139,7 @@ class SecurityEventService:
             "protocol": protocol,
             "event_type": event_type,
             "command": payload.command,
-            "tactic": payload.tactic,
+            "tactic": tactic,
             "input_risk_score": payload.input_risk_score,
         }
         assessment_projection = {
@@ -112,7 +158,7 @@ class SecurityEventService:
             "protocol": protocol,
             "event_type": event_type,
             "command": payload.command,
-            "tactic": payload.tactic,
+            "tactic": tactic,
             "input_risk_score": payload.input_risk_score,
             "payload_hash": canonical_sha256(event_projection),
             "hash_version": HASH_VERSION,

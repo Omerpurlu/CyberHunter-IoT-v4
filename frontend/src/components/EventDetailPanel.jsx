@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import StatusBadge from './StatusBadge';
 import { tarihSaatFormatla } from '../utils/dateFormat';
+import ResponseActionDetails from './ResponseActionDetails';
 
 function DetailField({ label, value, mono = false, copyable = false, onCopy }) {
   const displayed = value === null || value === undefined || value === '' ? 'Veri yok' : String(value);
@@ -19,7 +20,7 @@ function DetailField({ label, value, mono = false, copyable = false, onCopy }) {
   );
 }
 
-export default function EventDetailPanel({ event, onClose, returnFocus }) {
+export default function EventDetailPanel({ event, responseAction, responseActionCount = 0, responseActionsLoading, responseActionsError, onClose, returnFocus }) {
   const panelRef = useRef(null);
   const [copyMessage, setCopyMessage] = useState('');
   const assessment = event?.assessment;
@@ -107,6 +108,13 @@ export default function EventDetailPanel({ event, onClose, returnFocus }) {
               <DetailField key={label} label={label} value={value} mono={mono} copyable={copyable} onCopy={copy} />
             ))}
           </dl>
+          <div className="my-6 border-t border-slate-800" />
+          <ResponseActionDetails
+            action={responseAction}
+            count={responseActionCount}
+            loading={responseActionsLoading}
+            error={responseActionsError}
+          />
         </div>
       </aside>
     </div>
